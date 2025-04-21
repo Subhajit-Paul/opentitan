@@ -1444,4 +1444,175 @@ module usbdev
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[0])
+// AUTO-GENERATED ASSERTIONS START
+
+// Inside usbdev module, after the module declaration
+
+// Helper logic for clock timing
+logic [5:0] clk_period_count;
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        clk_period_count <= '0;
+    end else begin
+        clk_period_count <= clk_period_count + 1'b1;
+    end
+end
+
+// CLK1: Clock Frequency Check (48MHz with 2500ppm accuracy)
+// Note: This is a simplified check - actual clock frequency monitoring would require external PLL
+property p_clock_frequency;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (clk_period_count == 6'd47) |-> (us_tick);
+endproperty
+CLK1_clock_freq: assert property(p_clock_frequency);
+
+// CLK2: SOF Detection Check
+property p_sof_detection;
+    @(posedge clk_i) disable iff (!rst_ni)
+    event_sof |-> ##[0:47] usb_ref_pulse_o;
+endproperty
+CLK2_sof_detect: assert property(p_sof_detection);
+
+// CLK3: Clock Valid Signal Check
+property p_clock_valid;
+    @(posedge clk_i) disable iff (!rst_ni)
+    event_sof && !usb_ref_val_o |-> ##1 usb_ref_val_o;
+endproperty
+CLK3_clock_valid: assert property(p_clock_valid);
+
+// RST1: Reset Behavior Check
+property p_reset_behavior;
+    @(posedge clk_i) disable iff (!rst_ni)
+    !rst_ni |-> ##1 (frame == '0 && link_state == 3'b0);
+endproperty
+RST1_reset_check: assert property(p_reset_behavior);
+
+// PIN1: Pin Flip Control Check
+property p_pin_flip_control;
+    @(posedge clk_i) disable iff (!rst_ni)
+    cfg_pinflip |-> (usb_dp_pullup_en == 1'b0 && usb_dn_pullup_en == usb_pullup_en);
+endproperty
+PIN1_flip_control: assert property(p_pin_flip_control);
+
+// PIN2: Pullup Control Check
+property p_pullup_control;
+    @(posedge clk_i) disable iff (!rst_ni)
+    !(usb_dp_pullup_o && usb_dn_pullup_o);
+endproperty
+PIN2_pullup_control: assert property(p_pullup_control);
+
+// BUF1: Buffer Allocation FIFO Order
+property p_buffer_allocation;
+    @(posedge clk_i) disable iff (!rst_ni)
+    avout_rvalid && avout_rready |-> ##1 !avout_rvalid || (avout_rdata != $past(avout_rdata));
+endproperty
+BUF1_fifo_order: assert property(p_buffer_allocation);
+
+// BUF2: Buffer NAK on Empty
+property p_buffer_nak;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (!avout_rvalid && rx_wvalid) |-> !rx_wready_out;
+endproperty
+BUF2_buffer_nak: assert property(p_buffer_nak);
+
+// BUF3: Buffer Size Check
+property p_buffer_size;
+    @(posedge clk_i) disable iff (!rst_ni)
+    rx_wvalid |-> (rx_wdata[11:5] <= 7'd64);
+endproperty
+BUF3_size_check: assert property(p_buffer_size);
+
+// BUF4: Buffer Count Check
+property p_buffer_count;
+    @(posedge clk_i) disable iff (!rst_ni)
+    rx_depth <= RXFifoDepth;
+endproperty
+BUF4_count_check: assert property(p_buffer_count);
+
+// PKT1: Packet Reception Storage
+property p_packet_reception;
+    @(posedge clk_i) disable iff (!rst_ni)
+    rx_wvalid && rx_wready |-> ##1 rx_fifo_rvalid;
+endproperty
+PKT1_reception: assert property(p_packet_reception);
+
+// PKT2: Packet Transmission Match
+property p_packet_transmission;
+    @(posedge clk_i) disable iff (!rst_ni)
+    in_xact_starting |-> (in_buf_q == in_buf[in_xact_start_ep]);
+endproperty
+PKT2_transmission: assert property(p_packet_transmission);
+
+// PKT3: CRC Check
+property p_crc_check;
+    @(posedge clk_i) disable iff (!rst_ni)
+    event_rx_crc_err |-> !rx_wvalid;
+endproperty
+PKT3_crc: assert property(p_crc_check);
+
+// INT1: Packet Received Interrupt
+property p_pkt_received_interrupt;
+    @(posedge clk_i) disable iff (!rst_ni)
+    event_pkt_received |-> ##[0:1] intr_pkt_received_o;
+endproperty
+INT1_pkt_received: assert property(p_pkt_received_interrupt);
+
+// INT2: IN Complete Interrupt
+property p_in_complete_interrupt;
+    @(posedge clk_i) disable iff (!rst_ni)
+    in_ep_xact_end && in_endpoint_val |-> ##[0:1] intr_pkt_sent_o;
+endproperty
+INT2_in_complete: assert property(p_in_complete_interrupt);
+
+// FSM1: State Transitions
+property p_state_transitions;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (link_state == 3'b001) && link_reset |-> ##1 (link_state == 3'b010);
+endproperty
+FSM1_state_trans: assert property(p_state_transitions);
+
+// FSM2: Suspend Entry
+property p_suspend_entry;
+    @(posedge clk_i) disable iff (!rst_ni)
+    link_suspend |-> ##[0:1] intr_link_suspend_o;
+endproperty
+FSM2_suspend: assert property(p_suspend_entry);
+
+// FSM3: Resume Detection
+property p_resume_detection;
+    @(posedge clk_i) disable iff (!rst_ni)
+    event_link_resume |-> ##[0:1] intr_link_resume_o;
+endproperty
+FSM3_resume: assert property(p_resume_detection);
+
+// EP1: Endpoint Enable Check
+property p_endpoint_enable;
+    @(posedge clk_i) disable iff (!rst_ni)
+    rx_wvalid && out_endpoint_val |-> ep_out_enable[out_endpoint];
+endproperty
+EP1_enable: assert property(p_endpoint_enable);
+
+// EP2: Endpoint NAK Check
+property p_endpoint_nak;
+    @(posedge clk_i) disable iff (!rst_ni)
+    !enable_out[out_endpoint] && out_endpoint_val |-> !rx_wready_out;
+endproperty
+EP2_nak: assert property(p_endpoint_nak);
+
+// TX1: Transmit Mode Check
+property p_transmit_mode;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.phy_config.tx_use_d_se0.q |-> (usb_tx_use_d_se0_o == 1'b1);
+endproperty
+TX1_mode: assert property(p_transmit_mode);
+
+// TX2: Transmit Cancel Check
+property p_transmit_cancel;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (setup_received || event_link_reset) |-> ##1 clear_rdybit != '0;
+endproperty
+TX2_cancel: assert property(p_transmit_cancel);
+
+// AUTO-GENERATED ASSERTIONS END
+
 endmodule

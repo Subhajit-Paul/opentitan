@@ -123,4 +123,35 @@ module uart
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[0])
+// AUTO-GENERATED ASSERTIONS START
+
+// Helper logic
+logic [7:0] tx_data_reg;      // Register to track transmitted data
+logic [5:0] tx_fifo_level;    // TX FIFO level counter
+logic [6:0] rx_fifo_level;    // RX FIFO level counter
+logic [3:0] bit_counter;      // Bit counter for transmission
+logic tx_active;              // TX is currently sending data
+logic rx_active;              // RX is currently receiving data
+
+// Additional helper logic declarations
+logic [3:0] rx_sample_cnt;    // RX sampling counter
+logic rx_start_detect;        // RX start bit detection flag
+logic tick_baud;             // Baud rate tick
+logic [15:0] baud_counter;   // Baud rate counter for NCO
+logic [7:0] break_cnt;       // Break condition counter
+logic [7:0] rx_data_reg;     // RX data register
+logic rx_valid;              // RX valid indication
+logic [23:0] timeout_cnt;    // Timeout counter
+
+// CHK12: Baud Rate Generation (corrected register field access)
+property uart_baud_rate;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (reg2hw.ctrl.nco.q != 0) |-> 
+    (tick_baud == (baud_counter >= reg2hw.ctrl.nco.q));
+endproperty
+UART_BAUD_RATE: assert property(uart_baud_rate);
+
+// AUTO-GENERATED ASSERTIONS END
+
+
 endmodule

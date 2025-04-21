@@ -296,4 +296,180 @@ module aes
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[1])
+  //////////////////////////////////////////////  // Assertions, Assumptions, and Coverpoints //  //////////////////////////////////////////////
+// AUTO-GENERATED ASSERTIONS START
+
+// Helper Logic
+logic key_config_valid, ctrl_update_valid;
+logic all_input_regs_written, all_output_regs_read;
+logic [3:0] operation_mode;
+logic [2:0] key_len;
+logic [2:0] cipher_mode;
+logic prng_reseed_needed;
+
+// Key configuration validity check
+assign key_config_valid = reg2hw.status.idle.q;
+
+// Control update validity (two matching writes)
+assign ctrl_update_valid = !reg2hw.ctrl_shadowed.err;
+
+// Input/Output register tracking
+assign all_input_regs_written = &{reg2hw.data_in[0].qe, reg2hw.data_in[1].qe, 
+                                 reg2hw.data_in[2].qe, reg2hw.data_in[3].qe};
+assign all_output_regs_read = &{reg2hw.data_out[0].re, reg2hw.data_out[1].re,
+                               reg2hw.data_out[2].re, reg2hw.data_out[3].re};
+
+// Operation parameters
+assign operation_mode = reg2hw.ctrl_shadowed.operation.q;
+assign key_len = reg2hw.ctrl_shadowed.key_len.q;
+assign cipher_mode = reg2hw.ctrl_shadowed.mode.q;
+
+// PRNG reseed condition
+assign prng_reseed_needed = reg2hw.ctrl_aux_shadowed.key_touch_forces_reseed.q ||
+                           (reg2hw.ctrl_shadowed.prng_reseed_rate.q != '0);
+
+// CHK1: Key Configuration Valid
+property key_config_valid_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.key_share0[0].qe |-> key_config_valid;
+endproperty
+assert_key_config_valid: assert property(key_config_valid_p);
+
+// CHK2: Control Shadow Register Updates
+property control_shadow_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.ctrl_shadowed.operation.qe |-> ctrl_update_valid;
+endproperty
+assert_control_shadow: assert property(control_shadow_p);
+
+// CHK3: Operation Mode Switch
+property operation_mode_switch_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (reg2hw.ctrl_shadowed.operation.qe && key_config_valid) |=> 
+    hw2reg.status.idle.d == 1'b1;
+endproperty
+assert_operation_mode_switch: assert property(operation_mode_switch_p);
+
+// CHK4: Key Length Configuration
+property key_length_valid_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.ctrl_shadowed.key_len.qe |-> 
+    key_len inside {3'b001, 3'b010, 3'b011}; // 128/192/256-bit
+endproperty
+assert_key_length_valid: assert property(key_length_valid_p);
+
+// CHK5: Cipher Mode Selection
+property cipher_mode_valid_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.ctrl_shadowed.mode.qe |-> 
+    cipher_mode inside {3'b001, 3'b010, 3'b011, 3'b100, 3'b101}; // ECB/CBC/CFB/OFB/CTR
+endproperty
+assert_cipher_mode_valid: assert property(cipher_mode_valid_p);
+
+// CHK6: Manual Operation Control
+property manual_operation_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (reg2hw.ctrl_shadowed.manual_operation.q && reg2hw.trigger.start.q) |-> 
+    hw2reg.status.idle.d == 1'b0;
+endproperty
+assert_manual_operation: assert property(manual_operation_p);
+
+// CHK7: Automatic Operation
+property auto_operation_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (!reg2hw.ctrl_shadowed.manual_operation.q && all_input_regs_written) |=> 
+    hw2reg.status.idle.d == 1'b0;
+endproperty
+assert_auto_operation: assert property(auto_operation_p);
+
+// CHK8: Output Valid Status
+property output_valid_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    hw2reg.status.output_valid.d |-> !hw2reg.status.idle.d;
+endproperty
+assert_output_valid: assert property(output_valid_p);
+
+// CHK9: Input Ready Status
+property input_ready_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    hw2reg.status.input_ready.d |-> hw2reg.status.idle.d;
+endproperty
+assert_input_ready: assert property(input_ready_p);
+
+// CHK10: Stall Mechanism
+property stall_mechanism_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (!all_output_regs_read && hw2reg.status.output_valid.d) |-> 
+    $stable(hw2reg.status.idle.d);
+endproperty
+assert_stall_mechanism: assert property(stall_mechanism_p);
+
+// CHK11: Key Sideload Control
+property key_sideload_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (reg2hw.ctrl_shadowed.sideload.q && reg2hw.key_share0[0].qe) |-> 
+    $stable(hw2reg.key_share0[0].d);
+endproperty
+assert_key_sideload: assert property(key_sideload_p);
+
+// CHK12: IV Update Control
+property iv_update_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (cipher_mode inside {3'b010, 3'b011, 3'b100, 3'b101} && // CBC/CFB/OFB/CTR
+     hw2reg.status.output_valid.d) |=> 
+    !$stable(hw2reg.iv[0].d);
+endproperty
+assert_iv_update: assert property(iv_update_p);
+
+// CHK13: Counter Update
+property counter_update_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (cipher_mode == 3'b101 && // CTR mode
+     hw2reg.status.output_valid.d) |=> 
+    hw2reg.iv[0].d == $past(hw2reg.iv[0].d) + 1;
+endproperty
+assert_counter_update: assert property(counter_update_p);
+
+// CHK14: PRNG Reseed Control
+property prng_reseed_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (prng_reseed_needed && reg2hw.trigger.start.q) |-> 
+    hw2reg.status.prng_reseed.d;
+endproperty
+assert_prng_reseed: assert property(prng_reseed_p);
+
+// CHK15: Fault Detection Alert
+property fault_detection_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    alert[1] |-> hw2reg.status.alert_fatal_fault.d;
+endproperty
+assert_fault_detection: assert property(fault_detection_p);
+
+// CHK16: FSM State Encoding
+property fsm_encoding_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $onehot(u_aes_core.u_aes_control.state_q);
+endproperty
+assert_fsm_encoding: assert property(fsm_encoding_p);
+
+// CHK17: Register Clearing
+property clear_register_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.trigger.key_clear.q |=> 
+    hw2reg.key_share0[0].d != $past(hw2reg.key_share0[0].d);
+endproperty
+assert_clear_register: assert property(clear_register_p);
+
+// CHK18: Masking Control
+property masking_control_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    SecMasking |-> 
+    (reg2hw.key_share0[0].q != reg2hw.key_share1[0].q);
+endproperty
+assert_masking_control: assert property(masking_control_p);
+
+// AUTO-GENERATED ASSERTIONS END
+
+
 endmodule
+

@@ -617,5 +617,127 @@ module sram_ctrl
   // `tlul_gnt` is the same as `sram_gnt` when there's an active `tlul_req` that isn't being ignored
   // because the SRAM is initializing.
   `ASSERT(TlulGntIsCorrect_A, tlul_req |-> (sram_gnt & ~init_req) == tlul_gnt)
+// AUTO-GENERATED ASSERTIONS START
+
+// Inside sram_ctrl.sv, in the assertions section
+
+// Helper logic
+logic is_subword_write;
+assign is_subword_write = tlul_req && tlul_we && (tlul_wmask != {DataWidth{1'b1}});
+
+// Reset value constants (from RndCnst parameters)
+logic [otp_ctrl_pkg::SramKeyWidth-1:0] RESET_KEY;
+logic [otp_ctrl_pkg::SramNonceWidth-1:0] RESET_NONCE;
+assign RESET_KEY = RndCnstSramKey;
+assign RESET_NONCE = RndCnstSramNonce;
+
+// CHK1: Reset State Check
+property p_reset_state;
+  @(posedge clk_i) disable iff (!rst_ni)
+  $rose(rst_ni) |-> 
+    (key_q == RESET_KEY) && 
+    (nonce_q == RESET_NONCE) &&
+    (!init_q) &&
+    (!key_req_pending_q);
+endproperty
+RESET_STATE_CHECK: assert property(p_reset_state);
+
+// CHK2: Key Request Protocol
+property p_key_request_protocol;
+  @(posedge clk_i) disable iff (!rst_ni)
+  (reg2hw.ctrl.renew_scr_key.q && reg2hw.ctrl.renew_scr_key.qe) |-> 
+    (sram_otp_key_o.req && !key_req_pending_q) ##[0:$] 
+    (key_ack && (key_q == key_d) && (nonce_q == nonce_d));
+endproperty
+KEY_REQUEST_PROTOCOL_CHECK: assert property(p_key_request_protocol);
+
+// CHK3: Memory Access Block
+property p_memory_access_block;
+  @(posedge clk_i) disable iff (!rst_ni)
+  (key_req_pending_q || init_q) |-> !key_valid;
+endproperty
+MEMORY_ACCESS_BLOCK_CHECK: assert property(p_memory_access_block);
+
+// CHK4: LFSR Init Sequence
+property p_lfsr_init_sequence;
+  @(posedge clk_i) disable iff (!rst_ni)
+  (init_trig) |-> 
+    (init_q && !key_req_pending_q) ##1 
+    (init_req && (init_cnt == '0)) ##[0:Depth-1] 
+    init_done;
+endproperty
+LFSR_INIT_SEQUENCE_CHECK: assert property(p_lfsr_init_sequence);
+
+// CHK5: Write Defer Mechanism
+property p_write_defer_mechanism;
+  @(posedge clk_i) disable iff (!rst_ni)
+  (tlul_req && tlul_we && key_valid) |=> sram_wpending;
+endproperty
+WRITE_DEFER_MECHANISM_CHECK: assert property(p_write_defer_mechanism);
+
+// CHK6: Read Write Conflict
+property p_read_write_conflict;
+  @(posedge clk_i) disable iff (!rst_ni)
+  (tlul_req && !tlul_we && sram_wpending && 
+   ($past(tlul_addr) == tlul_addr)) |-> sram_wr_collision;
+endproperty
+READ_WRITE_CONFLICT_CHECK: assert property(p_read_write_conflict);
+
+// CHK7: Subword Write RMW
+property p_subword_write_rmw;
+  @(posedge clk_i) disable iff (!rst_ni)
+  (is_subword_write) |-> 
+    ##[0:2] (sram_we && sram_wmask == {DataWidth{1'b1}});
+endproperty
+SUBWORD_WRITE_RMW_CHECK: assert property(p_subword_write_rmw);
+
+// CHK8: Execute Control
+property p_execute_control;
+  @(posedge clk_i) disable iff (!rst_ni)
+  (InstrExec) |-> 
+    ((mubi8_test_true_strict(otp_en_sram_ifetch_i) && 
+      (reg2hw.exec.q == MuBi4True)) ||
+     (!mubi8_test_true_strict(otp_en_sram_ifetch_i) && 
+      lc_tx_test_true_loose(lc_hw_debug_en_i))) == 
+    (en_ifetch == MuBi4True);
+endproperty
+EXECUTE_CONTROL_CHECK: assert property(p_execute_control);
+
+// CHK9: Integrity Error Response
+property p_integrity_error_response;
+  @(posedge clk_i) disable iff (!rst_ni)
+  (|bus_integ_error) |-> 
+    ##[0:$] (reg2hw.status.bus_integ_error.q &&
+             !key_valid &&
+             local_esc);
+endproperty
+INTEGRITY_ERROR_RESPONSE_CHECK: assert property(p_integrity_error_response);
+
+// CHK10: ECC Error Handling
+// Note: ECC handling is implemented in the underlying memory primitive
+property p_ecc_error_handling;
+  @(posedge clk_i) disable iff (!rst_ni)
+  sram_rvalid |-> !sram_alert;
+endproperty
+ECC_ERROR_HANDLING_CHECK: assert property(p_ecc_error_handling);
+
+// CHK11: Address Scrambling
+property p_address_scrambling;
+  @(posedge clk_i) disable iff (!rst_ni)
+  (sram_req && key_valid) |-> 
+    (sram_addr != tlul_addr); // Non-linear transformation
+endproperty
+ADDRESS_SCRAMBLING_CHECK: assert property(p_address_scrambling);
+
+// CHK12: Data Scrambling
+property p_data_scrambling;
+  @(posedge clk_i) disable iff (!rst_ni)
+  (sram_req && sram_we && key_valid) |-> 
+    (sram_wdata != tlul_wdata); // PRINCE cipher transformation
+endproperty
+DATA_SCRAMBLING_CHECK: assert property(p_data_scrambling);
+
+// AUTO-GENERATED ASSERTIONS END
+
 
 endmodule : sram_ctrl

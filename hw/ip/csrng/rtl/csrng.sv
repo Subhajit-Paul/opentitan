@@ -211,4 +211,43 @@ module csrng
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[1])
+// AUTO-GENERATED ASSERTIONS START
+
+// Inside csrng.sv, after the module definition
+
+// Helper logic
+logic [3:0] cmd_type;
+assign cmd_type = csrng_cmd_i[0].csrng_req_bus[3:0];
+
+// First, define all properties
+property cmd_valid_stable;
+  @(posedge clk_i) disable iff (!rst_ni)
+  csrng_cmd_i[0].csrng_req_valid && !csrng_cmd_o[0].csrng_req_ready |=> 
+  $stable(csrng_cmd_i[0].csrng_req_valid) && $stable(csrng_cmd_i[0].csrng_req_bus);
+endproperty
+
+property cmd_rsp_ack_one_cycle;
+  @(posedge clk_i) disable iff (!rst_ni)
+  csrng_cmd_o[0].csrng_rsp_ack |=> !csrng_cmd_o[0].csrng_rsp_ack;
+endproperty
+
+property genbits_handshake;
+  @(posedge clk_i) disable iff (!rst_ni)
+  csrng_cmd_o[0].genbits_valid && csrng_cmd_i[0].genbits_ready |=> 
+  !csrng_cmd_o[0].genbits_valid;
+endproperty
+
+// Then, declare all assertions and covers
+// Assertion declarations
+CHK1_CmdValidStable: assert property(cmd_valid_stable);
+CHK2_RspAckOneCycle: assert property(cmd_rsp_ack_one_cycle);
+CHK3_GenbitsHandshake: assert property(genbits_handshake);
+
+// Coverage declarations
+COV1_CmdValidStable: cover property(cmd_valid_stable);
+COV2_RspAckOneCycle: cover property(cmd_rsp_ack_one_cycle);
+COV3_GenbitsHandshake: cover property(genbits_handshake);
+
+// AUTO-GENERATED ASSERTIONS END
+
 endmodule

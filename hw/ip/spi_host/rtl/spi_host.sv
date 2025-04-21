@@ -612,4 +612,125 @@ module spi_host
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[0])
+// AUTO-GENERATED ASSERTIONS START
+
+// Inside spi_host module
+
+// Helper logic
+logic [7:0] csb_active_cycles, csb_idle_cycles;
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        csb_active_cycles <= '0;
+        csb_idle_cycles <= '0;
+    end else begin
+        if (|cio_csb_o) csb_idle_cycles <= csb_idle_cycles + 1;
+        else csb_active_cycles <= csb_active_cycles + 1;
+    end
+end
+
+// CHK1: Reset Behavior
+property reset_behavior;
+    @(posedge clk_i) !rst_ni |=> 
+        (cio_csb_o == {NumCS{1'b1}}) &&
+        (hw2reg.status.ready.d == 1'b1) &&
+        (hw2reg.status.active.d == 1'b0) &&
+        (hw2reg.status.rxqd.d == '0) &&
+        (hw2reg.status.txqd.d == '0);
+endproperty
+RESET_BEHAVIOR_CHK: assert property(reset_behavior);
+
+// CHK2: FIFO Full/Empty Status
+property tx_fifo_full_empty;
+    @(posedge clk_i) disable iff (!rst_ni)
+        (tx_qd == '0) |-> tx_empty && !tx_full;
+endproperty
+TX_FIFO_STATUS_CHK: assert property(tx_fifo_full_empty);
+
+property rx_fifo_full_empty;
+    @(posedge clk_i) disable iff (!rst_ni)
+        (rx_qd == '0) |-> rx_empty && !rx_full;
+endproperty
+RX_FIFO_STATUS_CHK: assert property(rx_fifo_full_empty);
+
+// CHK3: CSB Timing
+property csb_lead_timing;
+    @(posedge clk_i) disable iff (!rst_ni)
+        $fell(cio_csb_o) |-> ##[1:reg2hw.configopts.csnlead.q] !$stable(cio_sck_o);
+endproperty
+CSB_LEAD_TIMING_CHK: assert property(csb_lead_timing);
+
+property csb_trail_timing;
+    @(posedge clk_i) disable iff (!rst_ni)
+        $rose(cio_csb_o) |-> ##[1:reg2hw.configopts.csntrail.q] $stable(cio_csb_o);
+endproperty
+CSB_TRAIL_TIMING_CHK: assert property(csb_trail_timing);
+
+// CHK4: SCK Generation
+property sck_polarity;
+    @(posedge clk_i) disable iff (!rst_ni)
+        !active |-> (cio_sck_o == reg2hw.configopts.cpol.q);
+endproperty
+SCK_POLARITY_CHK: assert property(sck_polarity);
+
+// CHK5: Data Alignment
+property data_alignment;
+    @(posedge clk_i) disable iff (!rst_ni)
+        reg2hw.configopts.order.q |-> (core_tx_data == tx_data);
+endproperty
+DATA_ALIGNMENT_CHK: assert property(data_alignment);
+
+// CHK6: CSAAT Control
+property csaat_control;
+    @(posedge clk_i) disable iff (!rst_ni)
+        (command.csaat && active) |-> !$rose(cio_csb_o);
+endproperty
+CSAAT_CONTROL_CHK: assert property(csaat_control);
+
+// CHK7: Speed Mode
+property speed_mode_standard;
+    @(posedge clk_i) disable iff (!rst_ni)
+        (command.speed == spi_host_pkg::Standard) |-> 
+        (cio_sd_en_o == 4'b0001);
+endproperty
+SPEED_MODE_STD_CHK: assert property(speed_mode_standard);
+
+property speed_mode_quad;
+    @(posedge clk_i) disable iff (!rst_ni)
+        (command.speed == spi_host_pkg::Quad) |-> 
+        (cio_sd_en_o == 4'b1111);
+endproperty
+SPEED_MODE_QUAD_CHK: assert property(speed_mode_quad);
+
+// CHK8: Error Detection
+property error_detection;
+    @(posedge clk_i) disable iff (!rst_ni)
+        |error_status_vec |-> ##[1:2] |hw2reg.error_status;
+endproperty
+ERROR_DETECTION_CHK: assert property(error_detection);
+
+// CHK9: Interrupt Generation
+property error_interrupt;
+    @(posedge clk_i) disable iff (!rst_ni)
+        (event_error && reg2hw.intr_enable.error.q) |-> intr_error_o;
+endproperty
+ERROR_INTERRUPT_CHK: assert property(error_interrupt);
+
+property spi_event_interrupt;
+    @(posedge clk_i) disable iff (!rst_ni)
+        (event_spi_event && reg2hw.intr_enable.spi_event.q) |-> intr_spi_event_o;
+endproperty
+SPI_EVENT_INTERRUPT_CHK: assert property(spi_event_interrupt);
+
+// CHK10: Passthrough Mode
+property passthrough_control;
+    @(posedge clk_i) disable iff (!rst_ni)
+        (passthrough_en && NumCS == 1) |-> 
+        (cio_sck_o == pt_sck) &&
+        (cio_csb_o == pt_csb) &&
+        (cio_sd_o == pt_sd);
+endproperty
+PASSTHROUGH_CONTROL_CHK: assert property(passthrough_control);
+
+// AUTO-GENERATED ASSERTIONS END
+
 endmodule : spi_host

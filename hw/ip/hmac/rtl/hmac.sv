@@ -947,4 +947,97 @@ module hmac
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[0])
+// AUTO-GENERATED ASSERTIONS START
+
+// Inside hmac module after existing assertions
+
+// Checker: FIFO_Full_Control (CHK1)
+// Property: When FIFO is full, any write request should be blocked 
+property fifo_full_backpressure_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (fifo_full && msg_fifo_req && msg_fifo_we) |-> !msg_fifo_gnt;
+endproperty
+FIFO_FULL_BACKPRESSURE: assert property(fifo_full_backpressure_p);
+
+// Property: When FIFO is not full, write requests should be granted if packer is ready
+property fifo_write_grant_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (!fifo_full && msg_fifo_req && msg_fifo_we && packer_ready && !hmac_fifo_wsel) |-> msg_fifo_gnt;
+endproperty
+FIFO_WRITE_GRANT: assert property(fifo_write_grant_p);
+
+// Checker: FIFO_Packing (CHK2)
+// Helper logic for tracking partial writes
+logic [31:0] partial_write_data;
+logic [3:0]  partial_write_mask;
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        partial_write_data <= '0;
+        partial_write_mask <= '0;
+    end
+    else if (msg_fifo_req && msg_fifo_we && msg_fifo_gnt) begin
+        partial_write_data <= msg_fifo_wdata;
+        partial_write_mask <= msg_fifo_wmask[31:28]; // Track upper nibble for example
+    end
+end
+
+// Property: Verify small writes are properly packed
+property fifo_packing_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (msg_fifo_req && msg_fifo_we && msg_fifo_gnt && wmask_ones < 4) |=> 
+    reg_fifo_wdata == (partial_write_data & partial_write_mask);
+endproperty
+FIFO_PACKING: assert property(fifo_packing_p);
+
+// Checker: Message_Length (CHK3)
+// Property: Message length should increment by number of bytes written
+property msg_length_increment_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (msg_write && sha_en && packer_ready) |=> 
+    message_length == ($past(message_length) + wmask_ones);
+endproperty
+MSG_LENGTH_INCREMENT: assert property(msg_length_increment_p);
+
+// Property: Message length should reset on hash start
+property msg_length_reset_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    hash_start |=> message_length == '0;
+endproperty
+MSG_LENGTH_RESET: assert property(msg_length_reset_p);
+
+// Checker: Hash_Process_Control (CHK11)
+// Property: hash_process should be ignored if hash_start hasn't been asserted
+property hash_process_control_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (reg_hash_process && !cfg_block) |-> !hash_process;
+endproperty
+HASH_PROCESS_CONTROL: assert property(hash_process_control_p);
+
+// Property: hash_process should be valid only after hash_start
+property hash_process_valid_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    hash_process |-> $past(cfg_block);
+endproperty
+HASH_PROCESS_VALID: assert property(hash_process_valid_p);
+
+// Additional helper assertions for robust verification
+
+// Property: Verify FIFO depth accuracy
+property fifo_depth_accurate_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (fifo_wvalid && fifo_wready) |=> $past(fifo_depth) + 1 == fifo_depth;
+endproperty
+FIFO_DEPTH_ACCURATE: assert property(fifo_depth_accurate_p);
+
+// Property: Verify FIFO empty condition is accurate
+property fifo_empty_accurate_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    fifo_empty |-> fifo_depth == 0;
+endproperty
+FIFO_EMPTY_ACCURATE: assert property(fifo_empty_accurate_p);
+
+// AUTO-GENERATED ASSERTIONS END
+
+
 endmodule
+

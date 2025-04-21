@@ -1,0 +1,33 @@
+CAPI=2:
+# Copyright lowRISC contributors (OpenTitan project).
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "lowrisc:fpv:rv_timer_fpv:0.1"
+description: "rv_timer FPV target"
+filesets:
+  files_formal:
+    depend:
+      - lowrisc:prim:all
+      - lowrisc:ip:rv_timer:0.1
+      # TODO: add more dependencies here if needed
+    files:
+      - vip/rv_timer_assert_fpv.sv
+      - tb/rv_timer_bind_fpv.sv
+      - tb/rv_timer_tb.sv
+    file_type: systemVerilogSource
+
+
+targets:
+  default: &default_target
+    # note, this setting is just used
+    # to generate a file list for jg
+    default_tool: icarus
+    filesets:
+      - files_formal
+    toplevel: rv_timer_tb
+
+  formal:
+    <<: *default_target
+
+  lint:
+    <<: *default_target

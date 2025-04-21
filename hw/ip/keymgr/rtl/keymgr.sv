@@ -800,4 +800,73 @@ module keymgr
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[1])
+// AUTO-GENERATED ASSERTIONS START
+
+// Inside keymgr.sv module:
+
+// Helper logic
+logic [2:0] valid_state_seq;
+assign valid_state_seq = {stage_sel == StOwnerRoot, 
+                         stage_sel == StOwnerInt,
+                         stage_sel == StCreatorRoot};
+
+// CHK1: State Transition Legal
+property state_transition_legal;
+  @(posedge clk_i) disable iff (!rst_ni)
+    (op_start && reg2hw.control_shadowed.operation.q == OpAdvance) |-> 
+    ($countones(valid_state_seq) <= 1);
+endproperty
+assert_state_transition_legal: assert property(state_transition_legal);
+
+// CHK2: Operation State Valid
+property operation_state_valid;
+  @(posedge clk_i) disable iff (!rst_ni)
+    op_start |-> 
+    ((stage_sel == StReset && reg2hw.control_shadowed.operation.q == OpAdvance) ||
+     (stage_sel == StInit && (reg2hw.control_shadowed.operation.q inside {OpAdvance, OpDisable})) ||
+     ((stage_sel inside {StCreatorRoot, StOwnerInt, StOwnerRoot}) && 
+      (reg2hw.control_shadowed.operation.q inside {OpAdvance, OpGenId, OpGenSwOut, OpGenHwOut, OpDisable})));
+endproperty
+assert_operation_state_valid: assert property(operation_state_valid);
+
+// CHK3: KMAC Interface Protocol
+property kmac_valid_stable;
+  @(posedge clk_i) disable iff (!rst_ni)
+    kmac_data_o.valid |-> (kmac_data_o.valid throughout (kmac_done[->1]));
+endproperty
+assert_kmac_valid_stable: assert property(kmac_valid_stable);
+
+// CHK4: Sideload Key Control
+property sideload_key_update;
+  @(posedge clk_i) disable iff (!rst_ni)
+    (data_valid && data_hw_en) |-> 
+    (aes_key_o.valid || kmac_key_o.valid || otbn_key_o.valid);
+endproperty
+assert_sideload_key_update: assert property(sideload_key_update);
+
+// CHK5: Error Response
+property error_alert_generation;
+  @(posedge clk_i) disable iff (!rst_ni)
+    (|err_code) |-> ##[0:2] op_err_req_q;
+endproperty
+assert_error_alert_generation: assert property(error_alert_generation);
+
+// CHK6: Invalid State Behavior
+property invalid_state_error;
+  @(posedge clk_i) disable iff (!rst_ni)
+    (stage_sel inside {StInvalid, StDisabled} && op_start) |-> 
+    ##[1:2] (err_code[ErrInvalidOp]);
+endproperty
+assert_invalid_state_error: assert property(invalid_state_error);
+
+// CHK7: Life Cycle Control
+property lifecycle_control;
+  @(posedge clk_i) disable iff (!rst_ni)
+    (!lc_tx_test_true_strict(lc_keymgr_en[KeyMgrEnCtrl])) |-> 
+    ##[1:2] (stage_sel == StInvalid);
+endproperty
+assert_lifecycle_control: assert property(lifecycle_control);
+
+// AUTO-GENERATED ASSERTIONS END
+
 endmodule // keymgr

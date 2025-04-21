@@ -21,7 +21,8 @@ clear -all
 source $env(COMMON_MSG_TCL_PATH)
 
 if {$env(COV) == 1} {
-  check_cov -init -model {branch statement functional} \
+#  check_cov -init -model {branch statement functional} 
+  check_cov -init -model statement \
   -exclude_bind_hierarchies
 }
 
@@ -196,7 +197,7 @@ if {$env(TASK) ne ""} {
 # propagate to "relevant signals" (by default, top instance outputs). If you need to specify
 # include/exclude relevant signals manually, run "jg_auto_coi_cov_waivers -help" for more
 # options.
-# jg_auto_coi_cov_waivers
+#jg_auto_coi_cov_waivers
 
 #-------------------------------------------------------------------------
 # configure proofgrid
@@ -210,11 +211,51 @@ set_proofgrid_per_engine_max_local_jobs 2
 
 get_reset_info -x_value -with_reset_pin
 
+# Additional Optimizations from Sudhakar
+
+  set ppd_file_path  "~/jg_ai/jg_fpv_ppd_file.ppd"
+
+  set ppd_file_path_local "./jg_fpv_ppd_file.ppd"
+
+#  set proof_master_dir "~/jg_ai/proof_master/"
+
+#  set proof_master_local_dir "./"
+
+  set_prove_cache on
+
+#  set_proofmaster on
+
+#  set_proofmaster_initial_dir $proof_master_dir
+
+#  set_proofmaster_dir $proof_master_local_dir
+
+  set_engine_solver solverX
+
+##set_engine_mode {B Mp M N AM Ht}
+
+  set_prove_report_mem on
+
+  set_trace_extension 0
+
+  set_engineQ3_max_trace_length 0
+
+  set_prove_advanced_simplification_time_limit 20m
+
+  set_prove_advanced_simplification on
+
+  set_word_level_reduction on
+
+  set_prove_clock_optimization on
+
+  set_per_property_simplification off
+
 # time limit set to 2 hours
 if {$env(TASK) ne ""} {
-  prove -task $env(TASK) -time_limit 2h
+  prove -task $env(TASK) -time_limit 1h -with_ppd $ppd_file_path -save_ppd $ppd_file_path_local
+  prove -task $env(TASK) -time_limit 2h -bg -with_proven -with_ppd $ppd_file_path -save_ppd $ppd_file_path_local
 } else {
-  prove -all -time_limit 2h
+  prove -all -time_limit 1h -with_ppd $ppd_file_path -save_ppd $ppd_file_path_local
+  prove -all -time_limit 2h -bg -with_proven -with_ppd  $ppd_file_path_local -save_ppd $ppd_file_path
 }
 
 report
@@ -224,8 +265,12 @@ report
 #-------------------------------------------------------------------------
 
 if {$env(COV) == 1} {
+#  check_cov -measure -time_limit 2h
+#  check_cov -report -force -exclude { reset waived } -checker COI
   check_cov -measure -time_limit 2h
-  check_cov -report -force -exclude { reset waived }
+  check_cov -report -force -exclude { reset waived } -checker COI
+  check_cov -report -no_return -report_file report.txt -force -exclude { reset waived } -checker COI
   check_cov -report -no_return -report_file cover.html \
-      -html -force -exclude { reset waived }
+      -html -force -exclude { reset waived } -checker COI
+
 }

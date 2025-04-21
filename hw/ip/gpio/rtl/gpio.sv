@@ -232,5 +232,323 @@ module gpio
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[0])
+// AUTO-GENERATED ASSERTIONS START
+
+// Helper logic for masked access
+logic [15:0] upper_mask_out_active;
+logic [15:0] lower_mask_out_active;
+logic [15:0] upper_mask_oe_active;
+logic [15:0] lower_mask_oe_active;
+logic strap_en;
+
+// Strap enable assignment
+assign strap_en = strap_en_i;
+
+genvar i;
+generate
+  for (i = 0; i < 16; i++) begin : gen_mask_bits
+    assign upper_mask_out_active[i] = reg2hw.masked_out_upper.mask.q[i] & reg2hw.masked_out_upper.data.qe;
+    assign lower_mask_out_active[i] = reg2hw.masked_out_lower.mask.q[i] & reg2hw.masked_out_lower.data.qe;
+    assign upper_mask_oe_active[i] = reg2hw.masked_oe_upper.mask.q[i] & reg2hw.masked_oe_upper.data.qe;
+    assign lower_mask_oe_active[i] = reg2hw.masked_oe_lower.mask.q[i] & reg2hw.masked_oe_lower.data.qe;
+  end
+endgenerate
+
+// CHK1: Direct output write
+property p_direct_out_write;
+  @(posedge clk_i) disable iff (!rst_ni)
+  reg2hw.direct_out.qe |=> cio_gpio_q == $past(reg2hw.direct_out.q);
+endproperty
+CHK1_DirectOutWrite: assert property(p_direct_out_write);
+
+// CHK2: Masked output upper
+property p_masked_out_upper;
+  @(posedge clk_i) disable iff (!rst_ni)
+  reg2hw.masked_out_upper.data.qe |=> 
+    ((cio_gpio_q[31:16] & reg2hw.masked_out_upper.mask.q) == 
+     ($past(reg2hw.masked_out_upper.data.q) & $past(reg2hw.masked_out_upper.mask.q)));
+endproperty
+CHK2_MaskedOutUpper: assert property(p_masked_out_upper);
+
+// CHK3: Masked output lower
+property p_masked_out_lower;
+  @(posedge clk_i) disable iff (!rst_ni)
+  reg2hw.masked_out_lower.data.qe |=> 
+    ((cio_gpio_q[15:0] & reg2hw.masked_out_lower.mask.q) == 
+     ($past(reg2hw.masked_out_lower.data.q) & $past(reg2hw.masked_out_lower.mask.q)));
+endproperty
+CHK3_MaskedOutLower: assert property(p_masked_out_lower);
+
+// CHK4: Direct OE write
+property p_direct_oe_write;
+  @(posedge clk_i) disable iff (!rst_ni)
+  reg2hw.direct_oe.qe |=> cio_gpio_en_q == $past(reg2hw.direct_oe.q);
+endproperty
+CHK4_DirectOEWrite: assert property(p_direct_oe_write);
+
+// CHK5: Masked OE upper
+property p_masked_oe_upper;
+  @(posedge clk_i) disable iff (!rst_ni)
+  reg2hw.masked_oe_upper.data.qe |=> 
+    ((cio_gpio_en_q[31:16] & reg2hw.masked_oe_upper.mask.q) == 
+     ($past(reg2hw.masked_oe_upper.data.q) & $past(reg2hw.masked_oe_upper.mask.q)));
+endproperty
+CHK5_MaskedOEUpper: assert property(p_masked_oe_upper);
+
+// CHK6: Masked OE lower
+property p_masked_oe_lower;
+  @(posedge clk_i) disable iff (!rst_ni)
+  reg2hw.masked_oe_lower.data.qe |=> 
+    ((cio_gpio_en_q[15:0] & reg2hw.masked_oe_lower.mask.q) == 
+     ($past(reg2hw.masked_oe_lower.data.q) & $past(reg2hw.masked_oe_lower.mask.q)));
+endproperty
+CHK6_MaskedOELower: assert property(p_masked_oe_lower);
+
+// CHK7: GPIO output drive
+generate
+  for (i = 0; i < 32; i++) begin : gen_output_drive_check
+    property p_gpio_output_drive_i;
+      @(posedge clk_i) disable iff (!rst_ni)
+      cio_gpio_en_o[i] |-> (cio_gpio_o[i] == cio_gpio_q[i]);
+    endproperty
+    CHK7_GpioOutputDrive_i: assert property(p_gpio_output_drive_i);
+  end
+endgenerate
+
+// CHK8: GPIO output tristate
+generate
+  for (i = 0; i < 32; i++) begin : gen_tristate_check
+    property p_gpio_output_tristate_i;
+      @(posedge clk_i) disable iff (!rst_ni)
+      !cio_gpio_en_q[i] |-> !cio_gpio_en_o[i];
+    endproperty
+    CHK8_GpioOutputTristate_i: assert property(p_gpio_output_tristate_i);
+  end
+endgenerate
+
+// CHK9: Input data direct
+generate
+  for (i = 0; i < 32; i++) begin : gen_input_direct_check
+    property p_input_data_direct_i;
+      @(posedge clk_i) disable iff (!rst_ni)
+      (!reg2hw.ctrl_en_input_filter.q[i]) |-> (data_in_d[i] == cio_gpio_i[i]);
+    endproperty
+    CHK9_InputDataDirect_i: assert property(p_input_data_direct_i);
+  end
+endgenerate
+
+// CHK10: Input data filtered
+generate
+  for (i = 0; i < 32; i++) begin : gen_input_filtered_check
+    property p_input_data_filtered_i;
+      @(posedge clk_i) disable iff (!rst_ni)
+      (reg2hw.ctrl_en_input_filter.q[i] && $stable(cio_gpio_i[i])[*16]) |-> 
+        (data_in_d[i] == cio_gpio_i[i]);
+    endproperty
+    CHK10_InputDataFiltered_i: assert property(p_input_data_filtered_i);
+  end
+endgenerate
+
+// CHK11: HW strap sampling
+property p_hw_strap_sampling;
+  @(posedge clk_i) disable iff (!rst_ni)
+  (strap_en && !reg2hw.hw_straps_data_in_valid.q) |=> 
+    (reg2hw.hw_straps_data_in.q == $past(cio_gpio_i));
+endproperty
+CHK11_HWStrapSampling: assert property(p_hw_strap_sampling);
+
+// CHK12-17: Interrupt related assertions
+generate
+  for (i = 0; i < 32; i++) begin : gen_intr_assertions
+    // CHK12: Interrupt rising edge
+    property p_intr_rising_edge_i;
+      @(posedge clk_i) disable iff (!rst_ni)
+      (reg2hw.intr_ctrl_en_rising.q[i] && !data_in_q[i] && data_in_d[i]) |-> 
+        event_intr_rise[i];
+    endproperty
+    CHK12_IntrRisingEdge_i: assert property(p_intr_rising_edge_i);
+
+    // CHK13: Interrupt falling edge
+    property p_intr_falling_edge_i;
+      @(posedge clk_i) disable iff (!rst_ni)
+      (reg2hw.intr_ctrl_en_falling.q[i] && data_in_q[i] && !data_in_d[i]) |-> 
+        event_intr_fall[i];
+    endproperty
+    CHK13_IntrFallingEdge_i: assert property(p_intr_falling_edge_i);
+
+    // CHK14: Interrupt level high
+    property p_intr_level_high_i;
+      @(posedge clk_i) disable iff (!rst_ni)
+      (reg2hw.intr_ctrl_en_lvlhigh.q[i] && data_in_d[i]) |-> 
+        event_intr_acthigh[i];
+    endproperty
+    CHK14_IntrLevelHigh_i: assert property(p_intr_level_high_i);
+
+    // CHK15: Interrupt level low
+    property p_intr_level_low_i;
+      @(posedge clk_i) disable iff (!rst_ni)
+      (reg2hw.intr_ctrl_en_lvllow.q[i] && !data_in_d[i]) |-> 
+        event_intr_actlow[i];
+    endproperty
+    CHK15_IntrLevelLow_i: assert property(p_intr_level_low_i);
+
+    // CHK16: Interrupt enable mask
+    property p_intr_enable_mask_i;
+      @(posedge clk_i) disable iff (!rst_ni)
+      intr_gpio_o[i] |-> (reg2hw.intr_state.q[i] && reg2hw.intr_enable.q[i]);
+    endproperty
+    CHK16_IntrEnableMask_i: assert property(p_intr_enable_mask_i);
+
+  end
+endgenerate
+
+// AUTO-GENERATED ASSERTIONS END
+// Stage 1 AUTO-GENERATED ASSERTIONS START
+
+// SVA to ensure cio_gpio_q is reset to 0 (LINE 1)
+  property p_cio_gpio_q_reset;
+    @(posedge clk_i) disable iff (!rst_ni)
+    !rst_ni |-> cio_gpio_q == '0;
+  endproperty
+  A_cio_gpio_q_reset: assert property (p_cio_gpio_q_reset);
+
+  // SVA to ensure cio_gpio_en_q is reset to 0 (LINE 5)
+  property p_cio_gpio_en_q_reset;
+    @(posedge clk_i) disable iff (!rst_ni)
+    !rst_ni |-> cio_gpio_en_q == '0;
+  endproperty
+  A_cio_gpio_en_q_reset: assert property (p_cio_gpio_en_q_reset);
+
+  // SVA for Direct Output Enable Control (LINE 6)
+  property p_direct_oe_control;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.direct_oe.qe |=> cio_gpio_en_q == reg2hw.direct_oe.q;
+  endproperty
+  A_direct_oe_control: assert property (p_direct_oe_control);
+
+  //Helper logic for the current value of cio_gpio_q
+  logic [31:0] pre_cio_gpio_q;
+  always_ff @(posedge clk_i or negedge rst_ni)
+    if (!rst_ni)
+      pre_cio_gpio_q <= '0;
+    else
+      pre_cio_gpio_q <= cio_gpio_q;
+
+  // SVA for Masked Write Verification (Data) Upper (LINE 3)
+  property p_masked_write_data_upper;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.masked_out_upper.data.qe |=>
+    cio_gpio_q[31:16] == ((reg2hw.masked_out_upper.mask.q & reg2hw.masked_out_upper.data.q) | (~reg2hw.masked_out_upper.mask.q & pre_cio_gpio_q[31:16]));
+  endproperty
+  A_masked_write_data_upper: assert property (p_masked_write_data_upper);
+
+  // SVA for Masked Write Verification (Data) Lower (LINE 4)
+  property p_masked_write_data_lower;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.masked_out_lower.data.qe |=>
+    cio_gpio_q[15:0] == ((reg2hw.masked_out_lower.mask.q & reg2hw.masked_out_lower.data.q) | (~reg2hw.masked_out_lower.mask.q & pre_cio_gpio_q[15:0]));
+  endproperty
+  A_masked_write_data_lower: assert property (p_masked_write_data_lower);
+
+  //Helper logic for the current value of cio_gpio_en_q
+  logic [31:0] pre_cio_gpio_en_q;
+  always_ff @(posedge clk_i or negedge rst_ni)
+    if (!rst_ni)
+      pre_cio_gpio_en_q <= '0;
+    else 
+      pre_cio_gpio_en_q <= cio_gpio_en_q;
+
+  // SVA for Masked Write Verification (OE) Upper (LINE 7)
+  property p_masked_write_oe_upper;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.masked_oe_upper.data.qe |=>
+    cio_gpio_en_q[31:16] == ((reg2hw.masked_oe_upper.mask.q & reg2hw.masked_oe_upper.data.q) | (~reg2hw.masked_oe_upper.mask.q & pre_cio_gpio_en_q[31:16]));
+  endproperty
+  A_masked_write_oe_upper: assert property (p_masked_write_oe_upper);
+
+  // SVA for Masked Write Verification (OE) Lower (LINE 8)
+  property p_masked_write_oe_lower;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.masked_oe_lower.data.qe |=>
+    cio_gpio_en_q[15:0] == ((reg2hw.masked_oe_lower.mask.q & reg2hw.masked_oe_lower.data.q) | (~reg2hw.masked_oe_lower.mask.q & pre_cio_gpio_en_q[15:0])));
+  endproperty
+  A_masked_write_oe_lower: assert property (p_masked_write_oe_lower);
+
+  // SVA for Data Input Capture Verification (LINE 9)
+  property p_data_in_capture;
+    @(posedge clk_i) disable iff (!rst_ni)
+    data_in_q == $past(data_in_d);
+  endproperty
+  A_data_in_capture: assert property (p_data_in_capture);
+
+  //UC2: Reset De-assertion Verification
+  //Property: After reset is deasserted, the GPIO module should be in a defined state (e.g., ready to accept configuration).
+  property p_reset_deassertion;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $rose(rst_ni) |=> reg2hw.direct_out.qe == 0 && reg2hw.direct_oe.qe == 0;
+  endproperty
+  A_reset_deassertion: assert property (p_reset_deassertion);
+
+  //UC3: Direct Output Register Write:
+  //Property: Writing different values (0 and 1) to the register that feeds reg2hw.direct_out.q results in the corresponding values being propagated to cio_gpio_q.
+  property p_direct_output_write;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.direct_out.qe |=> cio_gpio_q == reg2hw.direct_out.q;
+  endproperty
+  A_direct_output_write: assert property (p_direct_output_write);
+
+  //UC6: Direct Output Enable Register Write:
+  //Property: writing different values (0 and 1) to the register that feeds reg2hw.direct_oe.q results in the corresponding values being propagated to cio_gpio_en_q.
+  property p_direct_oe_register_write;
+    @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.direct_oe.qe |=> cio_gpio_en_q == reg2hw.direct_oe.q;
+  endproperty
+  A_direct_oe_register_write: assert property (p_direct_oe_register_write);
+
+  //UC10: Clock Enable Verification:
+  //Property: The clock should be running.
+  property p_clock_is_running;
+    @(posedge clk_i) disable iff (!rst_ni)
+      clk_i == ~ $past(clk_i);
+  endproperty
+  A_clock_is_running: assert property (p_clock_is_running);
+
+   //UC11: No Glitch Verification:
+  //Property: Verify that the signals cio_gpio_q and cio_gpio_en_q do not glitch when the mask and data signals change. This ensures signal integrity.
+generate
+    genvar i;
+    for (i = 0; i < 32; i++) begin : gen_no_glitch
+      property p_no_glitch_gpio_q;
+        @(posedge clk_i) disable iff (!rst_ni)
+          $stable(cio_gpio_q[i]);
+      endproperty
+      A_no_glitch_gpio_q: assert property (p_no_glitch_gpio_q);
+
+      property p_no_glitch_gpio_en_q;
+        @(posedge clk_i) disable iff (!rst_ni)
+          $stable(cio_gpio_en_q[i]);
+      endproperty
+      A_no_glitch_gpio_en_q: assert property (p_no_glitch_gpio_en_q);
+    end 
+endgenerate
+
+  //UC18: Enable Signal Stability:
+  //Property: Add assertions to verify that enable signals are stable during the relevant clock cycles. This prevents unintended behavior due to glitches or timing issues.
+generate
+  genvar i;
+   for (i = 0; i < 32; i++) begin : gen_enable_stable
+    property p_enable_signal_stable;
+      @(posedge clk_i) disable iff (!rst_ni)
+        $stable(reg2hw.ctrl_en_input_filter.q[i]);
+    endproperty
+    A_enable_signal_stable: assert property (p_enable_signal_stable);
+   end
+endgenerate
+
+// Stage 1 AUTO-GENERATED ASSERTIONS END
+
+
+
 
 endmodule
+

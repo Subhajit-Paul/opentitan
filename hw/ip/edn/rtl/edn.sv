@@ -170,4 +170,35 @@ module edn
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[1])
+// AUTO-GENERATED ASSERTIONS START
+
+// CHK1: Enable Control
+property edn_enable_start_operation;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $rose(reg2hw.ctrl.edn_enable.q) |=> 
+    (u_edn_core.edn_main_sm_state != Idle);
+endproperty
+assert_edn_enable_start: assert property(edn_enable_start_operation);
+
+property edn_disable_stop_operation;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $fell(reg2hw.ctrl.edn_enable.q) |=> 
+    (u_edn_core.edn_main_sm_state == Idle);
+endproperty
+assert_edn_disable_stop: assert property(edn_disable_stop_operation);
+
+// Reset behavior
+property reset_behavior;
+    @(posedge clk_i) disable iff (!rst_ni)
+    !rst_ni |=> (u_edn_core.edn_main_sm_state == Idle) &&
+                !u_edn_core.sfifo_gencmd_push && 
+                !u_edn_core.sfifo_rescmd_push;
+endproperty
+assert_reset: assert property(reset_behavior);
+
+// AUTO-GENERATED ASSERTIONS END
+
+// AUTO-GENERATED ASSERTIONS END
+
+
 endmodule

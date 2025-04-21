@@ -1462,4 +1462,147 @@ module otbn
   `ASSERT_PRIM_COUNT_ERROR_TRIGGER_ALERT(ImemReqFifoRptrCheck_A,
       u_tlul_adapter_sram_imem.u_reqfifo.gen_normal_fifo.u_fifo_cnt.gen_secure_ptrs.u_rptr,
       alert_tx_o[AlertFatal])
+// AUTO-GENERATED ASSERTIONS START
+
+// Helper logic 
+logic is_valid_state;
+logic mem_intg_err_dmem, mem_intg_err_imem;
+assign is_valid_state = (status_q inside {StatusIdle, StatusBusyExecute, StatusBusySecWipeInt, 
+                                        StatusBusySecWipeDmem, StatusBusySecWipeImem, StatusLocked});
+
+assign mem_intg_err_dmem = err_bits.dmem_intg_violation;
+assign mem_intg_err_imem = err_bits.imem_intg_violation;
+
+// CHK1: State Transitions 
+property state_transitions_valid_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    status_q != StatusLocked |-> is_valid_state;
+endproperty
+CHK1_Valid_States: assert property(state_transitions_valid_p);
+
+property state_transitions_init_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    $rose(rst_ni) |=> status_q == StatusBusySecWipeInt;
+endproperty
+CHK1_Init_State: assert property(state_transitions_init_p);
+
+// CHK2: Command Handling
+property cmd_execute_idle_only_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    reg2hw.cmd.qe && (reg2hw.cmd.q == CmdExecute) |-> status_q == StatusIdle;
+endproperty
+CHK2_Execute_When_Idle: assert property(cmd_execute_idle_only_p);
+
+// CHK3: Interrupt Control
+property intr_done_persist_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    done |-> (intr_done_o until reg2hw.intr_state.q);
+endproperty
+CHK3_Intr_Done_Persist: assert property(intr_done_persist_p);
+
+// CHK4: Error Handling
+property software_error_recoverable_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    (|{err_bits.bad_data_addr, err_bits.bad_insn_addr, err_bits.call_stack, 
+       err_bits.illegal_insn, err_bits.loop, err_bits.key_invalid}) && !software_errs_fatal_q 
+    |-> !locking;
+endproperty
+CHK4_Software_Error_Recovery: assert property(software_error_recoverable_p);
+
+// CHK5: Idle Signaling 
+property idle_signal_correct_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    status_q == StatusIdle |-> mubi4_test_true_loose(idle_o);
+endproperty
+CHK5_Idle_Signal: assert property(idle_signal_correct_p);
+
+// CHK6: Memory Protection
+property dmem_access_bounds_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    dmem_req |-> dmem_addr_core < DmemSizeByte;
+endproperty
+CHK6_DMEM_Bounds: assert property(dmem_access_bounds_p);
+
+// CHK7: Integrity Check
+property mem_integrity_violation_fatal_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    (mem_intg_err_dmem || mem_intg_err_imem) |-> ##[0:$] locking;
+endproperty
+CHK7_Integrity_Fatal: assert property(mem_integrity_violation_fatal_p);
+
+// CHK8: Memory Scrambling
+property dmem_scramble_key_change_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    $rose(dmem_sec_wipe) |=> ##[0:$] $changed(otbn_dmem_scramble_key);
+endproperty
+CHK8_DMEM_Key_Change: assert property(dmem_scramble_key_change_p);
+
+// CHK9: Checksum Calculation
+property load_checksum_update_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    mem_crc_data_in_valid |-> ##1 $changed(crc_out);
+endproperty
+CHK9_Checksum_Update: assert property(load_checksum_update_p);
+
+// CHK10: Register Access
+property gpr_x0_reads_zero_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    u_otbn_rf_base.rf_reg[0] == 32'h0;
+endproperty
+CHK10_GPR_Zero: assert property(gpr_x0_reads_zero_p);
+
+// CHK11: Call Stack
+property call_stack_depth_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    u_otbn_stack.stack_wr_ptr_q <= 8;
+endproperty
+CHK11_Call_Stack_Depth: assert property(call_stack_depth_p);
+
+// CHK12: Secure Wipe
+property secure_wipe_clear_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    $fell(busy_secure_wipe) |-> !u_otbn_stack.stack_top_valid;
+endproperty
+CHK12_Secure_Wipe: assert property(secure_wipe_clear_p);
+
+// CHK13: RND Operation
+property rnd_stall_when_empty_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    (reg2hw.cmd.q == CmdExecute) && !edn_rnd_ack |-> !edn_rnd_data;
+endproperty
+CHK13_RND_Stall: assert property(rnd_stall_when_empty_p);
+
+// CHK14: URND Operation
+property urnd_never_stalls_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    edn_urnd_req |-> ##[0:2] edn_urnd_ack;
+endproperty
+CHK14_URND_NoStall: assert property(urnd_never_stalls_p);
+
+// CHK15: Sideload Key
+property sideload_key_valid_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    busy_execute_q && u_otbn_controller.key_reg_access |-> keymgr_key_i.valid;
+endproperty
+CHK15_Key_Valid: assert property(sideload_key_valid_p);
+
+// Additional helper assertions for complex checkers
+property fatal_error_lock_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    |{err_bits.imem_intg_violation, err_bits.dmem_intg_violation, 
+      err_bits.reg_intg_violation, err_bits.bus_intg_violation, 
+      err_bits.bad_internal_state, err_bits.illegal_bus_access} 
+    |-> ##[0:$] locking;
+endproperty
+Fatal_Error_Lock: assert property(fatal_error_lock_p);
+
+// Memory access control during execution
+property mem_access_control_p;
+  @(posedge clk_i) disable iff (!rst_ni)
+    busy_execute_q |-> !(imem_req_bus || dmem_req_bus);
+endproperty
+Mem_Access_Control: assert property(mem_access_control_p);
+
+// AUTO-GENERATED ASSERTIONS END
+
 endmodule

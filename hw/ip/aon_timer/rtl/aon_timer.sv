@@ -266,4 +266,118 @@ module aon_timer import aon_timer_reg_pkg::*;
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[0])
+// AUTO-GENERATED ASSERTIONS START
+
+// Helper logic
+logic [63:0] next_wkup_count;
+assign next_wkup_count = {reg2hw.wkup_count_hi.q, reg2hw.wkup_count_lo.q} + 1;
+
+// Checker implementations
+// CHK1: Wakeup counter increment
+property wkup_counter_increment_p;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (reg2hw.wkup_ctrl.enable.q && !lc_escalate_en) |=>
+    ({reg2hw.wkup_count_hi.q, reg2hw.wkup_count_lo.q} == next_wkup_count);
+endproperty
+CHK1_wkup_counter_increment: assert property(wkup_counter_increment_p);
+
+// CHK2: Wakeup threshold detection
+property wkup_threshold_detect_p;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (reg2hw.wkup_ctrl.enable.q && 
+     {reg2hw.wkup_count_hi.q, reg2hw.wkup_count_lo.q} >= {reg2hw.wkup_thold_hi.q, reg2hw.wkup_thold_lo.q}) |->
+    (wkup_req_o && aon_wkup_intr_set);
+endproperty
+CHK2_wkup_threshold_detect: assert property(wkup_threshold_detect_p);
+
+// CHK3: Watchdog counter increment
+property wdog_counter_increment_p;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (reg2hw.wdog_ctrl.enable.q && !lc_escalate_en && 
+     !(reg2hw.wdog_ctrl.pause_in_sleep.q && aon_sleep_mode)) |=>
+    (reg2hw.wdog_count.q == $past(reg2hw.wdog_count.q) + 1);
+endproperty
+CHK3_wdog_counter_increment: assert property(wdog_counter_increment_p);
+
+// CHK4: Watchdog bark threshold
+property wdog_bark_threshold_p;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (reg2hw.wdog_ctrl.enable.q && 
+     reg2hw.wdog_count.q >= reg2hw.wdog_bark_thold.q) |->
+    (wkup_req_o && aon_wdog_intr_set);
+endproperty
+CHK4_wdog_bark_threshold: assert property(wdog_bark_threshold_p);
+
+// CHK5: Watchdog bite threshold
+property wdog_bite_threshold_p;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (reg2hw.wdog_ctrl.enable.q && 
+     reg2hw.wdog_count.q >= reg2hw.wdog_bite_thold.q) |->
+    aon_timer_rst_req_o;
+endproperty
+CHK5_wdog_bite_threshold: assert property(wdog_bite_threshold_p);
+
+// CHK6: Escalation halt
+property escalate_halt_p;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (lc_escalate_en) |=>
+    ($stable({reg2hw.wkup_count_hi.q, reg2hw.wkup_count_lo.q}) && 
+     $stable(reg2hw.wdog_count.q));
+endproperty
+CHK6_escalate_halt: assert property(escalate_halt_p);
+
+// CHK7: Watchdog sleep pause
+property wdog_sleep_pause_p;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (reg2hw.wdog_ctrl.pause_in_sleep.q && aon_sleep_mode) |=>
+    $stable(reg2hw.wdog_count.q);
+endproperty
+CHK7_wdog_sleep_pause: assert property(wdog_sleep_pause_p);
+
+// CHK8: Watchdog configuration lock
+property wdog_config_lock_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (!reg2hw.wdog_regwen.q) |->
+    (!reg2hw.wdog_ctrl.qe && !reg2hw.wdog_bite_thold.qe && 
+     !reg2hw.wdog_bark_thold.qe);
+endproperty
+CHK8_wdog_config_lock: assert property(wdog_config_lock_p);
+
+// CHK9: Wakeup interrupt clear
+property wkup_clear_interrupt_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (reg2hw.intr_state.wkup_timer_expired.q && 
+     reg2hw.intr_state.wkup_timer_expired.qe) |=>
+    !intr_wkup_timer_expired_o;
+endproperty
+CHK9_wkup_clear_interrupt: assert property(wkup_clear_interrupt_p);
+
+// CHK10: Watchdog interrupt clear
+property wdog_clear_interrupt_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (reg2hw.intr_state.wdog_timer_bark.q && 
+     reg2hw.intr_state.wdog_timer_bark.qe) |=>
+    !intr_wdog_timer_bark_o;
+endproperty
+CHK10_wdog_clear_interrupt: assert property(wdog_clear_interrupt_p);
+
+// CHK11: Wakeup cause clear
+property wkup_cause_clear_p;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (!reg2hw.wkup_cause.q) |->
+    !wkup_req_o;
+endproperty
+CHK11_wkup_cause_clear: assert property(wkup_cause_clear_p);
+
+// CHK12: NMI bark copy
+property nmi_bark_copy_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    1'b1 |-> (nmi_wdog_timer_bark_o == intr_wdog_timer_bark_o);
+endproperty
+CHK12_nmi_bark_copy: assert property(nmi_bark_copy_p);
+
+// AUTO-GENERATED ASSERTIONS END
+
+
 endmodule
+

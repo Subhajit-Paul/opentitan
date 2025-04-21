@@ -1582,4 +1582,28 @@ module kmac
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[1])
+// AUTO-GENERATED ASSERTIONS START
+
+// CHK5: Mode and Strength Valid
+property MODE_STRENGTH_VALID;
+  @(posedge clk_i) disable iff (!rst_ni)
+    (!cfg_en_unsupported_modestrength && sha3_start) |-> 
+    ((app_sha3_mode == sha3_pkg::Sha3) && (app_keccak_strength inside {sha3_pkg::L224, sha3_pkg::L256, sha3_pkg::L384, sha3_pkg::L512})) ||
+    ((app_sha3_mode == sha3_pkg::Shake) && (app_keccak_strength inside {sha3_pkg::L128, sha3_pkg::L256})) ||
+    ((app_sha3_mode == sha3_pkg::CShake) && (app_keccak_strength inside {sha3_pkg::L128, sha3_pkg::L256}));
+endproperty
+MODE_STRENGTH_ASSERT: assert property(MODE_STRENGTH_VALID);
+
+// CHK15: Message Padding Valid
+property MSG_PADDING_VALID;
+  @(posedge clk_i) disable iff (!rst_ni)
+    (kmac2sha3_process) |-> 
+    ((app_sha3_mode == sha3_pkg::Sha3) && (msg_strb[1:0] == 2'b10)) ||
+    ((app_sha3_mode == sha3_pkg::Shake) && (msg_strb[3:0] == 4'b1111)) ||
+    ((app_sha3_mode == sha3_pkg::CShake) && (msg_strb[1:0] == 2'b00));
+endproperty
+MSG_PADDING_ASSERT: assert property(MSG_PADDING_VALID);
+
+// AUTO-GENERATED ASSERTIONS END
+
 endmodule

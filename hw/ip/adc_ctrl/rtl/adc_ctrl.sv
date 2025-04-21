@@ -106,4 +106,134 @@ module adc_ctrl
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[0])
+  //////////////////////////////////////////////  // Assertions, Assumptions, and Coverpoints //  //////////////////////////////////////////////
+
+// LLM
+
+// Helper logic
+logic [7:0] pwrup_counter;
+logic [7:0] prev_filter_hits;
+logic sampling_started;
+logic first_interrupt;
+
+// Counter for power-up sequence
+always_ff @(posedge clk_aon_i or negedge rst_aon_ni) begin
+    if (!rst_aon_ni) begin
+        pwrup_counter <= '0;
+    end else if (adc_o.pd) begin
+        pwrup_counter <= '0;
+    end else if (!sampling_started) begin
+        pwrup_counter <= pwrup_counter + 1'b1;
+    end
+end
+
+// Track previous filter hits for debounce checking
+always_ff @(posedge clk_aon_i or negedge rst_aon_ni) begin
+    if (!rst_aon_ni) begin
+        prev_filter_hits <= '0;
+    end else begin
+        prev_filter_hits <= hw2reg.filter_status.d;
+    end
+end
+
+// Track first interrupt occurrence
+always_ff @(posedge clk_aon_i or negedge rst_aon_ni) begin
+    if (!rst_aon_ni) begin
+        first_interrupt <= 1'b0;
+    end else if (intr_match_pending_o) begin
+        first_interrupt <= 1'b1;
+    end
+end
+
+// Property: Power Up Sequence
+property power_up_sequence;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (!adc_o.pd) |-> (##[0:pwrup_time] sampling_started);
+endproperty
+POWER_UP_SEQ: assert property(power_up_sequence);
+
+// Property: Channel Sampling Sequence
+property channel_sampling_sequence;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (adc_o.channel_sel == 2'b10) |-> $past(adc_o.channel_sel == 2'b01);
+endproperty
+CHANNEL_SAMPLING_SEQ: assert property(channel_sampling_sequence);
+
+// Property: Channel Select Protocol
+property channel_select_protocol;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    ($changed(adc_o.channel_sel)) |-> $past(adc_o.channel_sel == 2'b00);
+endproperty
+CHANNEL_SELECT_PROT: assert property(channel_select_protocol);
+
+// Property: Sample Storage
+property sample_storage;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (adc_i.data_valid) |-> ##1 $changed(hw2reg.adc_chn_val);
+endproperty
+SAMPLE_STORAGE: assert property(sample_storage);
+
+// Property: Filter Range Inside Check
+property filter_range_inside;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (reg2hw.filter_cfg[0].min_v <= adc_i.data && adc_i.data <= reg2hw.filter_cfg[0].max_v) |-> 
+    hw2reg.filter_status.d[0];
+endproperty
+FILTER_RANGE_INSIDE: assert property(filter_range_inside);
+
+// Property: Filter Range Outside Check
+property filter_range_outside;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (adc_i.data < reg2hw.filter_cfg[1].min_v || adc_i.data > reg2hw.filter_cfg[1].max_v) |->
+    hw2reg.filter_status.d[1];
+endproperty
+FILTER_RANGE_OUTSIDE: assert property(filter_range_outside);
+
+// Property: Debounce Counter Reset
+property debounce_counter_reset;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (hw2reg.filter_status.d != prev_filter_hits) |=> (debounce_cntr == '0);
+endproperty
+DEBOUNCE_CNT_RESET: assert property(debounce_counter_reset);
+
+// Property: Debounce Counter Increment
+property debounce_counter_increment;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (hw2reg.filter_status.d == prev_filter_hits && |hw2reg.filter_status.d) |=>
+    (debounce_cntr == $past(debounce_cntr) + 1'b1);
+endproperty
+DEBOUNCE_CNT_INC: assert property(debounce_counter_increment);
+
+// Property: Interrupt Generation
+property interrupt_generation;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (debounce_cntr == reg2hw.np_sample_cnt.q) |-> intr_match_pending_o;
+endproperty
+INTERRUPT_GEN: assert property(interrupt_generation);
+
+// Property: Wakeup Generation
+property wakeup_generation;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (|(hw2reg.filter_status.d & reg2hw.adc_wakeup_ctl.q)) |-> wkup_req_o;
+endproperty
+WAKEUP_GEN: assert property(wakeup_generation);
+
+// Property: Value Interrupt Capture
+property value_interrupt_capture;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    (intr_match_pending_o && !first_interrupt) |-> ##1 $stable(hw2reg.adc_chn_val);
+endproperty
+VALUE_INTERRUPT_CAPTURE: assert property(value_interrupt_capture);
+
+// Property: Filter Status Update
+property filter_status_update;
+    @(posedge clk_aon_i) disable iff (!rst_aon_ni)
+    $changed(hw2reg.filter_status.d) |-> 
+    (!reg2hw.filter_status_clr.q || reg2hw.filter_status_clr.qe);
+endproperty
+FILTER_STATUS_UPDATE: assert property(filter_status_update);
+
+// LLM
+
 endmodule
+

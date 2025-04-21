@@ -936,4 +936,6 @@ module gpio_reg_top (
   // property by mistake
   //`ASSUME(reqParity, tl_reg_h2d.a_valid |-> tl_reg_h2d.a_user.chk_en == tlul_pkg::CheckDis)
 
+
 endmodule
+

@@ -566,4 +566,165 @@ module rom_ctrl
   `ASSERT_PRIM_COUNT_ERROR_TRIGGER_ALERT(ReqFifoRptrCheck_A,
       u_tl_adapter_rom.u_reqfifo.gen_normal_fifo.u_fifo_cnt.gen_secure_ptrs.u_rptr,
       alert_tx_o[AlertFatal])
+  //////////////////////////////////////////////  // Assertions, Assumptions, and Coverpoints //  //////////////////////////////////////////////
+
+// LLM
+
+// Property: After reset, ROM checker has control (mux select)
+property reset_mux_select_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $rose(rst_ni) |-> (rom_select_bus == prim_mubi_pkg::MuBi4False);
+endproperty
+RESET_MUX_SELECT: assert property(reset_mux_select_p);
+
+// Property: After reset, address counter is 0
+property reset_addr_counter_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $rose(rst_ni) |-> (checker_rom_index == '0);
+endproperty
+RESET_ADDR_COUNTER: assert property(reset_addr_counter_p);
+
+// Property: After reset, pwrmgr_data_o.done is low
+property reset_pwrmgr_done_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $rose(rst_ni) |-> (pwrmgr_data_o.done == prim_mubi_pkg::MuBi4False);
+endproperty
+RESET_PWRMGR_DONE: assert property(reset_pwrmgr_done_p);
+
+// Property: After reset, keymgr_data_o.valid is low
+property reset_keymgr_valid_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $rose(rst_ni) |-> (!keymgr_data_o.valid);
+endproperty
+RESET_KEYMGR_VALID: assert property(reset_keymgr_valid_p);
+
+// Property: TL-UL request-response timing - response must come within MAX_LATENCY cycles
+property tl_response_timing_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $rose(rom_tl_i.a_valid && rom_tl_o.a_ready) |-> 
+    ##[1:MAX_LATENCY] (rom_tl_o.d_valid || !rst_ni);
+endproperty
+TL_RESPONSE_TIMING: assert property(tl_response_timing_p);
+
+// Property: Valid address ranges check
+property tl_valid_addr_range_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (rom_tl_i.a_valid && rom_tl_o.a_ready) |-> 
+    (rom_tl_i.a_address < MemSizeRom);
+endproperty
+TL_VALID_ADDR_RANGE: assert property(tl_valid_addr_range_p);
+
+// Property: Correct data width (32-bit aligned accesses)
+property tl_data_width_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (rom_tl_i.a_valid && rom_tl_o.a_ready) |-> 
+    (rom_tl_i.a_address[1:0] == 2'b00);
+endproperty
+TL_DATA_WIDTH: assert property(tl_data_width_p);
+
+// Property: No write requests allowed
+property tl_no_writes_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (rom_tl_i.a_valid && rom_tl_o.a_ready) |-> 
+    (!rom_tl_i.a_opcode[2]); // Write operations have bit[2] set
+endproperty
+TL_NO_WRITES: assert property(tl_no_writes_p);
+
+// Property: Response channel valid signals must be known
+property tl_response_valid_known_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    !$isunknown(rom_tl_o.d_valid);
+endproperty
+TL_RESPONSE_VALID_KNOWN: assert property(tl_response_valid_known_p);
+
+// Property: Ready signal must be known
+property tl_ready_known_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    !$isunknown(rom_tl_o.a_ready);
+endproperty
+TL_READY_KNOWN: assert property(tl_ready_known_p);
+
+// Parameters for TL protocol assertions
+localparam int unsigned MAX_LATENCY = 16; // Maximum allowed response latency
+
+// Helper function to check if address is aligned
+function automatic logic is_aligned(logic [31:0] addr);
+    return (addr[1:0] == 2'b00);
+endfunction
+
+// LLM
+// AUTO-GENERATED ASSERTIONS START
+
+// Inside rom_ctrl.sv, after the module declaration and before endmodule
+
+//---------------------------------
+// Helper Logic
+//---------------------------------
+// Signal declarations
+logic fsm_in_reset_state;
+logic mux_in_checker_mode;
+logic [DataWidth-1:0] keystream;
+
+// State checking - corrected state name to use Reset instead of StReset
+assign fsm_in_reset_state = (gen_fsm_scramble_enabled.u_checker_fsm.state_q == rom_ctrl_pkg::Reset);
+
+// Mux mode checking
+assign mux_in_checker_mode = (rom_select_bus == prim_mubi_pkg::MuBi4False);
+
+//---------------------------------
+// Checker Assertions
+//---------------------------------
+
+// CHK1: Reset Behavior
+property reset_fsm_state_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $rose(rst_ni) |-> fsm_in_reset_state;
+endproperty
+CHK1_RESET_FSM: assert property(reset_fsm_state_p);
+
+// Single instance of reset_addr_counter_p
+property reset_addr_counter_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $rose(rst_ni) |-> (checker_rom_index == '0);
+endproperty
+CHK1_RESET_ADDR: assert property(reset_addr_counter_p);
+
+// Single instance of reset_mux_select_p
+property reset_mux_select_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $rose(rst_ni) |-> mux_in_checker_mode;
+endproperty
+CHK1_RESET_MUX: assert property(reset_mux_select_p);
+
+property reset_pwrmgr_signals_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    $rose(rst_ni) |-> (pwrmgr_data_o.done == prim_mubi_pkg::MuBi4False) &&
+                      (pwrmgr_data_o.good == prim_mubi_pkg::MuBi4False);
+endproperty
+CHK1_RESET_PWRMGR: assert property(reset_pwrmgr_signals_p);
+
+property hash_compare_done_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    kmac_done |-> ##[1:2] (pwrmgr_data_o.done == prim_mubi_pkg::MuBi4True);
+endproperty
+CHK7_HASH_DONE: assert property(hash_compare_done_p);
+
+property hash_compare_good_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (kmac_done && (kmac_digest == exp_digest_q)) |-> 
+        ##[1:2] (pwrmgr_data_o.good == prim_mubi_pkg::MuBi4True);
+endproperty
+CHK7_HASH_GOOD: assert property(hash_compare_good_p);
+
+// Coverage properties
+covergroup mux_transitions_cg @(posedge clk_i);
+    cp_mux_sel: coverpoint rom_select_bus {
+        bins checker_to_bus = (prim_mubi_pkg::MuBi4False => prim_mubi_pkg::MuBi4True);
+    }
+endgroup
+
+// AUTO-GENERATED ASSERTIONS END
+
+
 endmodule
+

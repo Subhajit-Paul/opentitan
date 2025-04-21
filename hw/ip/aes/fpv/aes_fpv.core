@@ -1,0 +1,45 @@
+CAPI=2:
+# Copyright lowRISC contributors (OpenTitan project).
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "lowrisc:fpv:aes_fpv:0.1"
+description: "aes FPV target"
+filesets:
+  files_formal:
+    depend:
+      - lowrisc:prim:all
+      - lowrisc:fpv:csr_assert_gen
+      - lowrisc:ip:tlul
+      - lowrisc:fpv:csr_assert_gen
+      - lowrisc:ip:aes
+      - lowrisc:fpv:csr_assert_gen
+      # TODO: add more dependencies here if needed
+    files:
+      - vip/aes_assert_fpv.sv
+      - tb/aes_bind_fpv.sv
+      - tb/aes_tb.sv
+    file_type: systemVerilogSource
+
+generate:
+  csr_assert_gen:
+    generator: csr_assert_gen
+    parameters:
+      spec: ../data/aes.hjson
+      depend: lowrisc:ip:aes
+
+targets:
+  default: &default_target
+    # note, this setting is just used
+    # to generate a file list for jg
+    default_tool: icarus
+    filesets:
+      - files_formal
+    generate:
+      - csr_assert_gen
+    toplevel: aes_tb
+
+  formal:
+    <<: *default_target
+
+  lint:
+    <<: *default_target

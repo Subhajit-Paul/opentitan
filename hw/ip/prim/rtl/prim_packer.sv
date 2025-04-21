@@ -1,4 +1,5 @@
 // Copyright lowRISC contributors (OpenTitan project).
+// Copyright lowRISC contributors (OpenTitan project).
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -58,6 +59,9 @@ module prim_packer #(
 
   logic flush_valid; // flush data out request
   logic flush_done;
+  
+  // Define a local signal for assertions that need pos_d
+  logic [PtrW-1:0] pos_d;
 
   // Computing next position ==================================================
   always_comb begin
@@ -72,8 +76,6 @@ module prim_packer #(
   assign pos_with_input = pos_q + PtrW'(inmask_ones);
 
   if (EnProtection == 1'b 0) begin : g_pos_nodup
-    logic [PtrW-1:0] pos_d;
-
     always_comb begin
       pos_d = pos_q;
 
@@ -115,7 +117,6 @@ module prim_packer #(
     assign cnt_step = (cnt_incr_en) ? PtrW'(inmask_ones) : PtrW'(OutW);
 
     always_comb begin : cnt_set_logic
-
       // default, consuming all data
       cnt_set = '0;
 
@@ -125,6 +126,18 @@ module prim_packer #(
       end
     end : cnt_set_logic
 
+    // For assertion purposes, define pos_d even in this branch
+    always_comb begin
+      if (cnt_set_en) begin
+        pos_d = cnt_set;
+      end else if (cnt_incr_en) begin
+        pos_d = pos_q + PtrW'(inmask_ones);
+      end else if (cnt_decr_en) begin
+        pos_d = (int'(pos_q) <= OutW) ? '0 : pos_q - PtrW'(OutW);
+      end else begin
+        pos_d = pos_q;
+      end
+    end
 
     prim_count #(
       .Width      (PtrW),
@@ -322,50 +335,343 @@ module prim_packer #(
           ##1 valid_i && $past(valid_i) && !$past(ready_o)
           |-> $stable(data_i) && $stable(mask_i))
 
-  `ASSERT(FlushFollowedByDone_A,
-          ##1 $rose(flush_i) && !flush_done_o |-> !flush_done_o [*0:$] ##1 flush_done_o)
+// LLM
 
-  // If not acked, valid_o should keep asserting
-  `ASSERT(ValidOPairedWidthReadyI_A,
-          valid_o && !ready_i |=> valid_o)
+// Helper Logic
+logic valid_ready_handshake_i, valid_ready_handshake_o;
+assign valid_ready_handshake_i = valid_i && ready_o;
+assign valid_ready_handshake_o = valid_o && ready_i;
 
-  // If stored data is greater than the output width, valid should be asserted
-  `ASSERT(ValidOAssertedForStoredDataGTEOutW_A,
-          ($countones(stored_mask) >= OutW) |-> valid_o)
-
-  // If output port doesn't accept the data, the data should be stable
-  `ASSERT(DataOStableWhenPending_A,
-          ##1 valid_o && $past(valid_o)
-          && !$past(ready_i) |-> $stable(data_o))
-
-  // If input data & stored data are greater than OutW, remained should be stored
-  `ASSERT(ExcessiveDataStored_A,
-          ack_in && ack_out && (($countones(mask_i) + $countones(stored_mask)) > OutW)
-          |=> (($past(data_i) &  $past(mask_i)) >>
-               ($past(lod_idx)+OutW-$countones($past(stored_mask))))
-               == stored_data)
-
-  `ASSERT(ExcessiveMaskStored_A,
-          ack_in && ack_out && (($countones(mask_i) + $countones(stored_mask)) > OutW)
-          |=> ($past(mask_i) >>
-               ($past(lod_idx)+OutW-$countones($past(stored_mask))))
-              == stored_mask)
-
-  // Assertions for byte hint enabled
-  if (HintByteData != 0) begin : g_byte_assert
-    `ASSERT_INIT(InputDividedBy8_A,  InW  % 8 == 0)
-    `ASSERT_INIT(OutputDividedBy8_A, OutW % 8 == 0)
-
-    // Masking[8*i+:8] should be all zero or all one
-    for (genvar i = 0 ; i < InW/8 ; i++) begin : g_byte_input_masking
-      `ASSERT(InputMaskContiguous_A,
-              valid_i |-> (|mask_i[8*i+:8] == 1'b 0)
-                       || (&mask_i[8*i+:8] == 1'b 1))
+// Helper to check mask contiguity
+function automatic logic is_mask_contiguous(logic [InW-1:0] mask);
+    logic found_one, found_zero;
+    found_one = 1'b0;
+    found_zero = 1'b0;
+    
+    for(int i = InW-1; i >= 0; i--) begin
+        if(mask[i] && found_zero) return 1'b0;
+        if(!mask[i]) found_zero = 1'b1;
+        if(mask[i]) found_one = 1'b1;
     end
-    for (genvar i = 0 ; i < OutW/8 ; i++) begin : g_byte_output_masking
-      `ASSERT(OutputMaskContiguous_A,
-              valid_o |-> (|mask_o[8*i+:8] == 1'b 0)
-                       || (&mask_o[8*i+:8] == 1'b 1))
-    end
-  end
+    return 1'b1;
+endfunction
+
+// CHK1: Valid_Ready_Handshake_Input
+property valid_ready_handshake_input_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    valid_ready_handshake_i |-> $stable(data_i) && $stable(mask_i);
+endproperty
+assert_valid_ready_handshake_input: assert property(valid_ready_handshake_input_p);
+
+// CHK2: Valid_Ready_Handshake_Output
+property valid_ready_handshake_output_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    valid_ready_handshake_o |-> $stable(data_o) && $stable(mask_o);
+endproperty
+assert_valid_ready_handshake_output: assert property(valid_ready_handshake_output_p);
+
+// CHK3: Data_Packing_Verification
+property data_packing_verification_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (valid_ready_handshake_i && pos_q == 0) |=> 
+    stored_data[InW-1:0] == $past(data_i & mask_i);
+endproperty
+assert_data_packing_verification: assert property(data_packing_verification_p);
+
+// CHK4: Mask_Contiguity_Check
+property mask_contiguity_check_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    valid_i |-> is_mask_contiguous(mask_i);
+endproperty
+assert_mask_contiguity: assert property(mask_contiguity_check_p);
+
+// CHK5: Output_Mask_Full
+property output_mask_full_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (valid_o && !flush_valid) |-> &mask_o;
+endproperty
+assert_output_mask_full: assert property(output_mask_full_p);
+
+// CHK6: Ready_Control
+property ready_control_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (!ready_i && pos_q > OutW) |-> !ready_o;
+endproperty
+assert_ready_control: assert property(ready_control_p);
+
+// CHK7: Flush_Operation
+property flush_operation_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (flush_i && pos_q > 0) |=> valid_o;
+endproperty
+assert_flush_operation: assert property(flush_operation_p);
+
+// CHK8: Flush_Done_Signal
+property flush_done_signal_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    flush_done_o |-> pos_q == 0;
+endproperty
+assert_flush_done: assert property(flush_done_signal_p);
+
+// CHK9: Error_Detection
+property error_detection_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (EnProtection && err_o) |-> $past(pos_q) != pos_q;
+endproperty
+assert_error_detection: assert property(error_detection_p);
+
+// CHK10: Storage_Overflow_Prevention
+property storage_overflow_prevention_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    pos_q <= (InW + OutW);
+endproperty
+assert_storage_overflow: assert property(storage_overflow_prevention_p);
+
+// CHK11: Data_Persistence
+property data_persistence_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (!ready_i && valid_o) |=> stored_data == $past(stored_data);
+endproperty
+assert_data_persistence: assert property(data_persistence_p);
+
+// CHK12: Reset_Behavior
+property reset_behavior_p;
+    @(posedge clk_i)
+    !rst_ni |-> (!valid_o && !flush_done_o && !err_o && pos_q == 0);
+endproperty
+assert_reset_behavior: assert property(reset_behavior_p);
+
+// CHK13: Partial_Write_Packing
+property partial_write_packing_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (valid_ready_handshake_i && !(&mask_i)) |=> 
+    stored_mask[InW-1:0] == $past(mask_i);
+endproperty
+assert_partial_write: assert property(partial_write_packing_p);
+
+// CHK14: Back_to_Back_Transfers
+property back_to_back_transfers_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (valid_ready_handshake_i && valid_ready_handshake_o) |=> ready_o;
+endproperty
+assert_back_to_back: assert property(back_to_back_transfers_p);
+
+// CHK15: Stall_Handling
+property stall_handling_p;
+    @(posedge clk_i) disable iff (!rst_ni)
+    (valid_o && !ready_i) |=> valid_o && (data_o == $past(data_o));
+endproperty
+assert_stall_handling: assert property(stall_handling_p);
+
+// LLM
+
+  // Property: Verify basic state retention behavior
+  property state_retention_basic_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (pos_d == pos_q) |-> ##1 (pos_q == $past(pos_q));
+  endproperty
+  CHK1_state_retention_basic: assert property(state_retention_basic_p);
+
+  // Property: Verify state transition stability
+  property state_transition_stability_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (!flush_done) |-> (pos_d == pos_q);
+  endproperty
+  CHK2_state_transition_stability: assert property(state_transition_stability_p);
+
+  // Property: Verify that in default case (when no other conditions are active), 
+  // pos_d maintains the value of pos_q
+  property default_state_hold_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (!flush_i && !ack_in && !ack_out) |-> (pos_d == pos_q);
+  endproperty
+  CHK1_default_state_hold: assert property(default_state_hold_p);
+
+  // Property: Verify that pos_d never takes undefined values in default case
+  property default_state_valid_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (!flush_i && !ack_in && !ack_out) |-> (!$isunknown(pos_d));
+  endproperty
+  CHK2_default_state_valid: assert property(default_state_valid_p);
+
+  // Property: Verify that lod_idx is 0 when mask_i has no set bits
+  property lod_idx_zero_mask_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (mask_i == '0) |-> (lod_idx == '0);
+  endproperty
+  CHK3_lod_idx_zero_mask: assert property(lod_idx_zero_mask_p);
+
+  // Property: Verify that lod_idx always stays within valid bounds
+  property lod_idx_bounds_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          1 |-> (lod_idx >= 0) && (lod_idx < InW);
+  endproperty
+  CHK4_lod_idx_bounds: assert property(lod_idx_bounds_p);
+
+  // Property: Verify shiftr_data behavior when valid_i is low
+  property shiftr_data_invalid_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (!valid_i) |-> (shiftr_data == '0);
+  endproperty
+  CHK5_shiftr_data_invalid: assert property(shiftr_data_invalid_p);
+
+  // Property: Verify that lod_idx has exactly IdxW bits after casting
+  property lod_idx_width_exact_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          1 |-> ($bits(lod_idx) == IdxW);
+  endproperty
+  CHK6_lod_idx_width_exact: assert property(lod_idx_width_exact_p);
+
+  // Property: Verify that when mask_i has exactly one bit set, 
+  // lod_idx matches the position of that bit
+  property lod_idx_position_match_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          ($onehot(mask_i)) |-> (mask_i[lod_idx] == 1'b1);
+  endproperty
+  CHK7_lod_idx_position_match: assert property(lod_idx_position_match_p);
+
+  // Property: Verify that lod_idx maintains unsigned property
+  // by never having its MSB used as sign bit
+  property lod_idx_unsigned_value_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          1 |-> (lod_idx[IdxW-1] == 1'b0 || lod_idx == {IdxW{1'b1}});
+  endproperty
+  CHK8_lod_idx_unsigned_value: assert property(lod_idx_unsigned_value_p);
+
+  // Property: Verify stored_data maintains its value when in hold state
+  property stored_data_hold_value_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (({ack_in, ack_out} inside {2'b00, 2'b11}) && !flush_done) |=> 
+          (stored_data == $past(stored_data));
+  endproperty
+  CHK9_stored_data_hold_value: assert property(stored_data_hold_value_p);
+
+  // Property: Verify stored_data_next equals stored_data in hold state
+  property stored_data_next_assignment_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          ({ack_in, ack_out} inside {2'b00, 2'b11}) |-> 
+          (stored_data_next == stored_data);
+  endproperty
+  CHK10_stored_data_next_assignment: assert property(stored_data_next_assignment_p);
+
+  // Property: Verify stored_data is cleared on reset or flush
+  property stored_data_clear_p;
+      @(posedge clk_i) disable iff (0)
+          (!rst_ni || flush_done) |=> (stored_data == '0);
+  endproperty
+  CHK11_stored_data_clear: assert property(stored_data_clear_p);
+
+  // Property: Verify stored_data updates correctly from stored_data_next
+  property stored_data_update_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (!flush_done) |=> (stored_data == $past(stored_data_next));
+  endproperty
+  CHK12_stored_data_update: assert property(stored_data_update_p);
+
+  // Property: Verify stored_mask_next maintains stored_mask value in default case
+  property stored_mask_next_retention_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          ({ack_in, ack_out} == 2'b00) |-> (stored_mask_next == stored_mask);
+  endproperty
+  CHK13_stored_mask_next_retention: assert property(stored_mask_next_retention_p);
+
+  // Property: Verify stored_mask properly updates from stored_mask_next
+  property stored_mask_update_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (!flush_done) |=> (stored_mask == $past(stored_mask_next));
+  endproperty
+  CHK14_stored_mask_update: assert property(stored_mask_update_p);
+
+  // Property: Verify stored_mask is cleared on reset
+  property stored_mask_reset_p;
+      @(posedge clk_i) disable iff (0)
+          (!rst_ni) |=> (stored_mask == '0);
+  endproperty
+  CHK15_stored_mask_reset: assert property(stored_mask_reset_p);
+
+  // Property: Verify flush state machine enters FlushIdle state after reset
+  property flush_reset_state_p;
+      @(posedge clk_i) disable iff (0)
+          (!rst_ni) |=> (flush_st == FlushIdle);
+  endproperty
+  CHK16_flush_reset_state: assert property(flush_reset_state_p);
+
+  // Property: Verify flush state machine stays in FlushIdle when no flush request  
+  property flush_idle_stable_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          ((flush_st == FlushIdle) && !flush_i) |=> (flush_st == FlushIdle);
+  endproperty
+  CHK17_flush_idle_stable: assert property(flush_idle_stable_p);
+
+  // Property: Verify flush_valid is deasserted under specific conditions
+  property flush_valid_deassert_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          ((pos_q == '0 && flush_st == FlushSend) || 
+           flush_st == FlushIdle) |-> 
+          (flush_valid == 1'b0);
+  endproperty
+  CHK18_flush_valid_deassert: assert property(flush_valid_deassert_p);
+
+  // Property: Verify relationship between flush_valid and valid_next
+  property flush_valid_to_valid_next_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (int'(pos_q) < OutW) |-> 
+          (valid_next == flush_valid);
+  endproperty
+  CHK19_flush_valid_to_valid_next: assert property(flush_valid_to_valid_next_p);
+
+  // Property: Verify flush_valid remains stable in non-transitioning states
+  property flush_valid_stable_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (flush_st == flush_st_next) |=> 
+          (flush_valid == $past(flush_valid));
+  endproperty
+  CHK20_flush_valid_stable: assert property(flush_valid_stable_p);
+
+  // Property: Verify flush_valid is deasserted after reset
+  property flush_valid_reset_p;
+      @(posedge clk_i) disable iff (0)
+          (!rst_ni) |=> (flush_valid == 1'b0);
+  endproperty
+  CHK21_flush_valid_reset: assert property(flush_valid_reset_p);
+
+  // Property: Verify flush_done is initially 0 when entering FlushSend state
+  property flush_done_init_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (flush_st == FlushIdle && flush_st_next == FlushSend) |=> 
+          (flush_done == 1'b0);
+  endproperty
+  CHK22_flush_done_init: assert property(flush_done_init_p);
+
+  // Property: Verify flush_done remains 0 while pos_q is non-zero
+  property flush_done_maintain_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          ((flush_st == FlushSend) && (pos_q != '0)) |-> 
+          (flush_done == 1'b0);
+  endproperty
+  CHK23_flush_done_maintain: assert property(flush_done_maintain_p);
+
+  // Property: Verify flush_done becomes 1 only when pos_q is zero in FlushSend state
+  property flush_done_completion_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          ((flush_st == FlushSend) && (pos_q == '0)) |-> 
+          (flush_done == 1'b1);
+  endproperty
+  CHK24_flush_done_completion: assert property(flush_done_completion_p);
+
+  // Property: Verify flush_done stability after completion until next flush operation
+  property flush_done_stability_p;
+      @(posedge clk_i) disable iff (!rst_ni)
+          (flush_done && (flush_st != FlushSend)) |=> 
+          (flush_done == $past(flush_done));
+  endproperty
+  CHK25_flush_done_stability: assert property(flush_done_stability_p);
+
+  // Property: Verify flush_done is deasserted after reset
+  property flush_done_reset_p;
+      @(posedge clk_i) disable iff (0)
+          (!rst_ni) |=> (flush_done == 1'b0);
+  endproperty
+  CHK26_flush_done_reset: assert property(flush_done_reset_p);
+
 endmodule

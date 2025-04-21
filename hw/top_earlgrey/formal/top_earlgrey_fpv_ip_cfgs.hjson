@@ -29,7 +29,207 @@
                exp_fail_hjson: "{proj_root}/hw/ip/pinmux/fpv/pinmux_expected_failure.hjson"
                cov: true
              }
+             {
+               name: gpio_fpv
+               dut: gpio_tb
+               fusesoc_core: lowrisc:fpv:gpio_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/gpio/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+             }
+             {
+               name: hmac_fpv
+               dut: hmac_tb
+               fusesoc_core: lowrisc:fpv:hmac_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/hmac/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+	       timeout_s: 10000
+             }
+             {
+               name: pattgen_fpv
+               dut: pattgen_tb
+               fusesoc_core: lowrisc:fpv:pattgen_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/pattgen/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+	       timeout_s: 7200
+             }
+             {
+               name: adc_ctrl_fpv
+               dut: adc_ctrl_tb
+               fusesoc_core: lowrisc:fpv:adc_ctrl_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/adc_ctrl/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             {
+               name: rv_timer_fpv
+               dut: rv_timer_tb
+               fusesoc_core: lowrisc:fpv:rv_timer_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/rv_timer/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+             }
+             {
+               name: sram_ctrl_fpv
+               dut: sram_ctrl_tb
+               fusesoc_core: lowrisc:fpv:sram_ctrl_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/sram_ctrl/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             {
+               name: rom_ctrl_fpv
+               dut: rom_ctrl_tb
+               fusesoc_core: lowrisc:fpv:rom_ctrl_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/rom_ctrl/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
 
+             {
+               name: kmac_fpv
+               dut: kmac_tb
+               fusesoc_core: lowrisc:fpv:kmac_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/kmac/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+
+             {
+               name: aon_timer_fpv
+               dut: aon_timer_tb
+               fusesoc_core: lowrisc:fpv:aon_timer_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/aon_timer/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+             }
+
+             {
+               name: aes_fpv
+               dut: aes_tb
+               fusesoc_core: lowrisc:fpv:aes_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/aes/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             {
+               name: keymgr_fpv
+               dut: keymgr_tb
+               fusesoc_core: lowrisc:fpv:keymgr_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/keymgr/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             {
+               name: keymgr_dpe_fpv
+               dut: keymgr_dpe_tb
+               fusesoc_core: lowrisc:fpv:keymgr_dpe_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/keymgr_dpe/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             {
+               name: edn_fpv
+               dut: edn_tb
+               fusesoc_core: lowrisc:fpv:edn_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/edn/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             {
+               name: csrng_fpv
+               dut: csrng_tb
+               fusesoc_core: lowrisc:fpv:csrng_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/csrng/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             {
+               name: otbn_fpv
+               dut: otbn_tb
+               fusesoc_core: lowrisc:fpv:otbn_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/otbn/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             {
+               name: spi_device_fpv
+               dut: spi_device_tb
+               fusesoc_core: lowrisc:fpv:spi_device_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/spi_device_ctrl/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             {
+               name: spi_host_fpv
+               dut: spi_host_tb
+               fusesoc_core: lowrisc:fpv:spi_host_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/spi_host/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             {
+               name: sysrst_ctrl_fpv
+               dut: sysrst_ctrl_tb
+               fusesoc_core: lowrisc:fpv:sysrst_ctrl_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/sysrst_ctrl/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             {
+               name: uart_fpv
+               dut: uart_tb
+               fusesoc_core: lowrisc:fpv:uart_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/uart/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             {
+               name: usbdev_fpv
+               dut: usbdev_tb
+               fusesoc_core: lowrisc:fpv:usbdev_fpv
+               import_cfgs: ["{proj_root}/hw/formal/tools/dvsim/common_fpv_cfg.hjson"]
+               rel_path: "hw/ip/usbdev/{sub_flow}/{tool}"
+               defines: "FPV_ALERT_NO_SIGINT_ERR"
+               cov: true
+               timeout_s: 10000
+             }
+             
              // Use chip_eargrey_asic parameters to verify pinmux.
              {
                name: pinmux_chip_fpv

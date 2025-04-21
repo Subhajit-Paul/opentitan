@@ -69,6 +69,8 @@ module tb;
     .cio_gpio_en_o       (gpio_oe)
   );
 
+//sp
+
   assign interrupts[NUM_GPIOS-1:0] = gpio_intr;
 
   // gpio pins are represented by bi-directional gpio_if interface
