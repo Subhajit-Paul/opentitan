@@ -4,6 +4,20 @@
 
 ## About the project
 
+## This is a fork of the original OpenTitan repository with commit ID: 6202b47f26. This `src` branch has been started from this commit.
+Follow these steps:
+---
+1. clone opentitan from this fork: `git clone https://github.com/Subhajit-Paul/opentitan.git`
+2. `cd opentitan`
+3. go to this branch: `git checkout src`
+4. create and activate environment: `python3.8 -m venv titan-env && source titan-env/bin/activate`
+5. `pip install python-requirements.txt`
+6. `deactivate`
+7. test quick run with: `./util/dvsim/dvsim.py ./hw/top_earlgrey/formal/top_earlgrey_fpv_ip_cfgs.hjson --select-cfgs gpio_fpv --run-timeout-mins 180 --build-timeout-mins 180`
+8. Reports and Logs can be found inside `./scratch/master/gpio_fpv-formal-fpv-jaspergold/default/` folder
+
+---
+
 [OpenTitan](https://opentitan.org) is an open source silicon Root of Trust
 (RoT) project.  OpenTitan will make the silicon RoT design and implementation
 more transparent, trustworthy, and secure for enterprises, platform providers,
